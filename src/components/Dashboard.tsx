@@ -12,22 +12,33 @@ import {
 import {
   ArrowDown,
   ArrowUp,
+  Check,
   Globe2,
   Info,
   LineChart as LineChartIcon,
+  RotateCcw,
   Search,
   Sparkles,
   TrendingDown,
   TrendingUp,
   X,
 } from "lucide-react";
-import Chart, { type ChartRange } from "./Chart";
+import Chart, { type ChartRange, type ChartScale } from "./Chart";
 import Flag from "./Flag";
 import type { CountryFile, CountrySummary, Coverage } from "@/lib/types";
 
 const CONTINENTS = ["All", "Africa", "Americas", "Asia", "Europe", "Oceania"] as const;
 type Continent = (typeof CONTINENTS)[number];
 type SortKey = "name" | "rate-desc" | "rate-asc" | "changed";
+
+const RATE_BUCKETS = [
+  { key: "any", label: "Any rate", test: (_: number | null) => true },
+  { key: "lt2", label: "< 2%", test: (r: number | null) => r != null && r < 2 },
+  { key: "2to5", label: "2–5%", test: (r: number | null) => r != null && r >= 2 && r < 5 },
+  { key: "5to10", label: "5–10%", test: (r: number | null) => r != null && r >= 5 && r < 10 },
+  { key: "gte10", label: "≥ 10%", test: (r: number | null) => r != null && r >= 10 },
+] as const;
+type RateBucketKey = (typeof RATE_BUCKETS)[number]["key"];
 
 const PALETTE = [
   "#0a84ff", "#ff453a", "#30d158", "#ff9f0a", "#bf5af2",
@@ -36,6 +47,7 @@ const PALETTE = [
 ];
 
 const RANGES: ChartRange[] = ["5Y", "10Y", "20Y", "50Y", "MAX"];
+const MAX_SELECTION = 12;
 
 function fmtPct(v: number | null | undefined) {
   return v == null ? "—" : `${v.toFixed(2)}%`;
@@ -59,15 +71,16 @@ export default function Dashboard({ index, coverage, preloadedSeries, defaultSel
   const [query, setQuery] = useState("");
   const deferredQuery = useDeferredValue(query);
   const [continent, setContinent] = useState<Continent>("All");
+  const [rateBucket, setRateBucket] = useState<RateBucketKey>("any");
   const [sort, setSort] = useState<SortKey>("rate-desc");
   const [selected, setSelected] = useState<string[]>(defaultSelection);
   const [cache, setCache] = useState<Record<string, CountryFile>>(preloadedSeries);
   const [range, setRange] = useState<ChartRange>("20Y");
+  const [scale, setScale] = useState<ChartScale>("linear");
   const [showCoverage, setShowCoverage] = useState(false);
   const [onlyHistory, setOnlyHistory] = useState(false);
 
   // Batched fetch — one Promise.all per "selected" change, one setState when ready.
-  // inflight set deduplicates across renders even when cache hasn't settled yet.
   const inflight = useRef<Set<string>>(new Set());
   useEffect(() => {
     const missing = selected.filter((iso) => !cache[iso] && !inflight.current.has(iso));
@@ -100,7 +113,11 @@ export default function Dashboard({ index, coverage, preloadedSeries, defaultSel
   }, [selected, cache]);
 
   const toggle = useCallback((iso: string) => {
-    setSelected((sel) => (sel.includes(iso) ? sel.filter((x) => x !== iso) : [...sel, iso]));
+    setSelected((sel) => {
+      if (sel.includes(iso)) return sel.filter((x) => x !== iso);
+      if (sel.length >= MAX_SELECTION) return sel;
+      return [...sel, iso];
+    });
   }, []);
   const remove = useCallback((iso: string) => {
     setSelected((sel) => sel.filter((x) => x !== iso));
@@ -116,11 +133,24 @@ export default function Dashboard({ index, coverage, preloadedSeries, defaultSel
     [index],
   );
 
+  const resetFilters = useCallback(() => {
+    setQuery("");
+    setContinent("All");
+    setRateBucket("any");
+    setOnlyHistory(false);
+    setSort("rate-desc");
+  }, []);
+
+  const filtersActive =
+    query.trim() !== "" || continent !== "All" || rateBucket !== "any" || onlyHistory;
+
   const filtered = useMemo(() => {
     const q = deferredQuery.trim().toLowerCase();
     let rows = index;
     if (continent !== "All") rows = rows.filter((c) => c.continent === continent);
     if (onlyHistory) rows = rows.filter((c) => c.hasHistory);
+    const bucket = RATE_BUCKETS.find((b) => b.key === rateBucket)!;
+    if (rateBucket !== "any") rows = rows.filter((c) => bucket.test(c.rate));
     if (q) rows = rows.filter((c) => c.name.toLowerCase().includes(q) || c.iso2.toLowerCase().includes(q));
     rows = rows.slice();
     switch (sort) {
@@ -138,7 +168,7 @@ export default function Dashboard({ index, coverage, preloadedSeries, defaultSel
         break;
     }
     return rows;
-  }, [index, continent, deferredQuery, sort, onlyHistory]);
+  }, [index, continent, deferredQuery, sort, onlyHistory, rateBucket]);
 
   const stats = useMemo(() => {
     const withRate = index.filter((c) => c.rate != null) as (CountrySummary & { rate: number })[];
@@ -174,6 +204,28 @@ export default function Dashboard({ index, coverage, preloadedSeries, defaultSel
   );
 
   const loadingCount = selected.length - chartSeries.length;
+
+  // "Select visible" toggles all currently-filtered rows that aren't already selected,
+  // up to MAX_SELECTION. If everything visible is already selected, it deselects them.
+  const visibleIsos = useMemo(() => filtered.map((c) => c.iso2), [filtered]);
+  const allVisibleSelected =
+    visibleIsos.length > 0 && visibleIsos.every((iso) => selected.includes(iso));
+  const toggleVisible = useCallback(() => {
+    setSelected((sel) => {
+      const visible = visibleIsos;
+      const allOn = visible.length > 0 && visible.every((iso) => sel.includes(iso));
+      if (allOn) {
+        const visSet = new Set(visible);
+        return sel.filter((iso) => !visSet.has(iso));
+      }
+      const merged = [...sel];
+      for (const iso of visible) {
+        if (merged.length >= MAX_SELECTION) break;
+        if (!merged.includes(iso)) merged.push(iso);
+      }
+      return merged;
+    });
+  }, [visibleIsos]);
 
   return (
     <main className="mx-auto w-full max-w-[1440px] px-4 py-8 sm:px-8 sm:py-12">
@@ -217,7 +269,7 @@ export default function Dashboard({ index, coverage, preloadedSeries, defaultSel
               <span className="text-xs text-neutral-400">no countries selected</span>
             ) : (
               <>
-                {selectedRows.slice(0, 10).map((c, i) => (
+                {selectedRows.slice(0, 12).map((c, i) => (
                   <SelectedPill
                     key={c.iso2}
                     color={PALETTE[i % PALETTE.length]}
@@ -225,8 +277,8 @@ export default function Dashboard({ index, coverage, preloadedSeries, defaultSel
                     onRemove={remove}
                   />
                 ))}
-                {selectedRows.length > 10 && (
-                  <span className="text-xs text-neutral-500">+{selectedRows.length - 10}</span>
+                {selectedRows.length > 12 && (
+                  <span className="text-xs text-neutral-500">+{selectedRows.length - 12}</span>
                 )}
                 {loadingCount > 0 && (
                   <span className="text-[11px] text-neutral-500">loading {loadingCount}…</span>
@@ -240,78 +292,124 @@ export default function Dashboard({ index, coverage, preloadedSeries, defaultSel
               </>
             )}
           </div>
-          <Segment value={range} onChange={setRange} options={RANGES} />
+          <div className="flex flex-wrap items-center gap-2">
+            <Segment
+              value={scale}
+              onChange={setScale}
+              options={[
+                { value: "linear", label: "Linear" },
+                { value: "log", label: "Log" },
+              ]}
+            />
+            <Segment value={range} onChange={setRange} options={RANGES} />
+          </div>
         </div>
         <div className="h-[360px] sm:h-[440px]">
-          <Chart series={chartSeries} range={range} />
+          <Chart series={chartSeries} range={range} scale={scale} />
         </div>
       </section>
 
       {/* Filters + table */}
       <section className="glass overflow-hidden rounded-3xl">
-        <div className="flex flex-wrap items-center gap-2 border-b border-black/[0.06] p-3 dark:border-white/[0.08] sm:p-4">
-          <label className="flex flex-1 items-center gap-2 rounded-full bg-white/70 px-3 py-1.5 ring-1 ring-black/5 dark:bg-white/[0.06] dark:ring-white/10 sm:min-w-[260px] sm:max-w-sm">
-            <Search size={14} className="opacity-50" />
-            <input
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              placeholder="Search country or code"
-              className="w-full bg-transparent text-sm outline-none placeholder:text-neutral-400"
-            />
-            {query && (
-              <button onClick={() => setQuery("")} className="opacity-50 hover:opacity-100">
-                <X size={12} />
+        <div className="flex flex-col gap-3 border-b border-black/[0.06] p-3 dark:border-white/[0.08] sm:p-4">
+          {/* Row 1: search + sort */}
+          <div className="flex flex-wrap items-center gap-2">
+            <label className="flex flex-1 items-center gap-2 rounded-full bg-white/70 px-3 py-1.5 ring-1 ring-black/5 dark:bg-white/[0.06] dark:ring-white/10 sm:min-w-[260px] sm:max-w-sm">
+              <Search size={14} className="opacity-50" />
+              <input
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                placeholder="Search country or code"
+                className="w-full bg-transparent text-sm outline-none placeholder:text-neutral-400"
+              />
+              {query && (
+                <button onClick={() => setQuery("")} className="opacity-50 hover:opacity-100" aria-label="Clear search">
+                  <X size={12} />
+                </button>
+              )}
+            </label>
+            <div className="ml-auto flex items-center gap-2">
+              <span className="hidden text-[11px] uppercase tracking-wider text-neutral-500 sm:inline">Sort</span>
+              <Segment
+                value={sort}
+                onChange={setSort}
+                options={[
+                  { value: "name", label: "A–Z" },
+                  { value: "rate-desc", label: (<>Rate <ArrowDown size={11} className="ml-0.5" /></>) },
+                  { value: "rate-asc", label: (<>Rate <ArrowUp size={11} className="ml-0.5" /></>) },
+                  { value: "changed", label: "Last move" },
+                ] as { value: SortKey; label: React.ReactNode }[]}
+              />
+            </div>
+          </div>
+
+          {/* Row 2: filters */}
+          <div className="flex flex-wrap items-center gap-2">
+            <Segment value={continent} onChange={setContinent} options={CONTINENTS} />
+            <Segment value={rateBucket} onChange={setRateBucket} options={RATE_BUCKETS.map((b) => ({ value: b.key, label: b.label }))} />
+            <button
+              onClick={() => setOnlyHistory((x) => !x)}
+              className={`chip ${onlyHistory ? "chip-active" : ""}`}
+            >
+              With history
+            </button>
+            <button onClick={() => pickTop("highest")} className="chip">Top 8 highest</button>
+            <button onClick={() => pickTop("lowest")} className="chip">Top 8 lowest</button>
+            {filtersActive && (
+              <button onClick={resetFilters} className="chip inline-flex items-center gap-1.5">
+                <RotateCcw size={11} /> Reset
               </button>
             )}
-          </label>
-          <Segment value={continent} onChange={setContinent} options={CONTINENTS} />
-          <button
-            onClick={() => setOnlyHistory((x) => !x)}
-            className={`chip ${onlyHistory ? "chip-active" : ""}`}
-          >
-            With history
-          </button>
-          <button onClick={() => pickTop("highest")} className="chip">
-            Top 8 highest
-          </button>
-          <button onClick={() => pickTop("lowest")} className="chip">
-            Top 8 lowest
-          </button>
-          <div className="ml-auto">
-            <Segment
-              value={sort}
-              onChange={setSort}
-              options={[
-                { value: "name", label: "A–Z" },
-                { value: "rate-desc", label: (<>Rate <ArrowDown size={11} className="ml-0.5" /></>) },
-                { value: "rate-asc", label: (<>Rate <ArrowUp size={11} className="ml-0.5" /></>) },
-                { value: "changed", label: "Last move" },
-              ] as { value: SortKey; label: React.ReactNode }[]}
-            />
+          </div>
+
+          {/* Row 3: selection summary */}
+          <div className="flex flex-wrap items-center justify-between gap-2 text-[11px] text-neutral-500 dark:text-neutral-400">
+            <div className="flex items-center gap-3">
+              <span>
+                <span className="font-medium text-neutral-700 dark:text-neutral-200">{filtered.length}</span>{" "}
+                of {stats.total} shown
+              </span>
+              <span className="opacity-50">·</span>
+              <span>
+                <span className="font-medium text-neutral-700 dark:text-neutral-200">
+                  {selected.length}
+                </span>{" "}
+                / {MAX_SELECTION} selected
+              </span>
+            </div>
+            <button
+              onClick={toggleVisible}
+              disabled={visibleIsos.length === 0}
+              className="chip inline-flex items-center gap-1.5 disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              <Check size={11} /> {allVisibleSelected ? "Deselect visible" : "Select visible"}
+            </button>
           </div>
         </div>
 
         {/* Table */}
         <div className="max-h-[640px] overflow-y-auto">
           <table className="w-full text-sm tnum">
-            <thead className="sticky top-0 z-10 bg-[color:var(--surface)]">
+            <thead className="sticky top-0 z-10 bg-[color:var(--surface)] backdrop-blur">
               <tr className="text-left text-[11px] uppercase tracking-wider text-neutral-500 dark:text-neutral-400">
-                <th className="w-8 px-3 py-2"></th>
+                <th className="w-10 px-3 py-2"></th>
                 <th className="px-3 py-2">Country</th>
-                <th className="px-3 py-2">Continent</th>
+                <th className="hidden px-3 py-2 sm:table-cell">Continent</th>
                 <th className="px-3 py-2 text-right">Rate</th>
-                <th className="px-3 py-2">Last change</th>
-                <th className="px-3 py-2">History</th>
+                <th className="hidden px-3 py-2 sm:table-cell">Last change</th>
+                <th className="hidden px-3 py-2 md:table-cell">History</th>
               </tr>
             </thead>
             <tbody>
               {filtered.map((c) => {
                 const palIdx = selected.indexOf(c.iso2);
+                const disabled = palIdx < 0 && selected.length >= MAX_SELECTION;
                 return (
                   <CountryRow
                     key={c.iso2}
                     c={c}
                     selectedIdx={palIdx}
+                    disabled={disabled}
                     onToggle={toggle}
                   />
                 );
@@ -319,7 +417,10 @@ export default function Dashboard({ index, coverage, preloadedSeries, defaultSel
               {filtered.length === 0 && (
                 <tr>
                   <td colSpan={6} className="px-6 py-12 text-center text-sm text-neutral-500">
-                    No countries match your filters.
+                    No countries match your filters.{" "}
+                    <button onClick={resetFilters} className="underline-offset-2 hover:underline">
+                      Reset
+                    </button>
                   </td>
                 </tr>
               )}
@@ -428,7 +529,6 @@ const SelectedPill = memo(function SelectedPill({
       title={country.name}
     >
       <span className="h-2 w-2 rounded-full" style={{ background: color }} />
-      <Flag code={country.flagCode} alt={country.name} size={14} />
       <span className="font-medium">{country.name}</span>
       <button
         type="button"
@@ -445,41 +545,52 @@ const SelectedPill = memo(function SelectedPill({
 const CountryRow = memo(function CountryRow({
   c,
   selectedIdx,
+  disabled,
   onToggle,
 }: {
   c: CountrySummary;
   selectedIdx: number;
+  disabled: boolean;
   onToggle: (iso: string) => void;
 }) {
   const isSel = selectedIdx >= 0;
   const color = isSel ? PALETTE[selectedIdx % PALETTE.length] : null;
   return (
     <tr
-      onClick={() => onToggle(c.iso2)}
-      className={`group cursor-pointer border-t border-black/[0.04] transition-colors dark:border-white/[0.05] ${
+      onClick={() => !disabled && onToggle(c.iso2)}
+      aria-disabled={disabled}
+      className={`group border-t border-black/[0.04] transition-colors dark:border-white/[0.05] ${
         isSel
-          ? "bg-blue-500/[0.07] dark:bg-blue-400/[0.10]"
-          : "hover:bg-black/[0.03] dark:hover:bg-white/[0.04]"
+          ? "cursor-pointer bg-blue-500/[0.08] dark:bg-blue-400/[0.10]"
+          : disabled
+          ? "cursor-not-allowed opacity-50"
+          : "cursor-pointer hover:bg-black/[0.03] dark:hover:bg-white/[0.04]"
       }`}
     >
       <td className="px-3 py-2">
-        {color ? (
-          <span className="block h-2.5 w-2.5 rounded-full" style={{ background: color }} />
-        ) : (
-          <span className="block h-2.5 w-2.5 rounded-full ring-1 ring-black/15 dark:ring-white/20" />
-        )}
+        <span
+          className={`grid h-4 w-4 place-items-center rounded-[4px] border transition-colors ${
+            isSel
+              ? "border-transparent"
+              : "border-black/15 group-hover:border-black/35 dark:border-white/20 dark:group-hover:border-white/45"
+          }`}
+          style={color ? { background: color, borderColor: color } : undefined}
+          aria-hidden
+        >
+          {isSel && <Check size={11} className="text-white" />}
+        </span>
       </td>
       <td className="px-3 py-2">
         <div className="flex items-center gap-2">
-          <Flag code={c.flagCode} alt={c.name} size={18} />
+          <Flag code={c.flagCode} alt={c.name} size={16} />
           <span className="font-medium">{c.name}</span>
           <span className="text-[11px] text-neutral-400">{c.iso2}</span>
         </div>
       </td>
-      <td className="px-3 py-2 text-neutral-500">{c.continent}</td>
+      <td className="hidden px-3 py-2 text-neutral-500 sm:table-cell">{c.continent}</td>
       <td className="px-3 py-2 text-right font-semibold">{fmtPct(c.rate)}</td>
-      <td className="px-3 py-2 text-neutral-500">{fmtDate(c.rateDate)}</td>
-      <td className="px-3 py-2 text-neutral-500">
+      <td className="hidden px-3 py-2 text-neutral-500 sm:table-cell">{fmtDate(c.rateDate)}</td>
+      <td className="hidden px-3 py-2 text-neutral-500 md:table-cell">
         {c.hasHistory ? (
           <span>
             {c.historyStart?.slice(0, 4)}–{c.historyEnd?.slice(0, 4)}{" "}

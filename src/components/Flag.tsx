@@ -1,18 +1,42 @@
 type Props = { code: string; alt: string; size?: number };
 
+const PALETTE = [
+  ["#2563eb", "#1d4ed8"], // blue
+  ["#059669", "#047857"], // emerald
+  ["#d97706", "#b45309"], // amber
+  ["#dc2626", "#b91c1c"], // red
+  ["#7c3aed", "#6d28d9"], // violet
+  ["#0891b2", "#0e7490"], // cyan
+  ["#db2777", "#be185d"], // pink
+  ["#65a30d", "#4d7c0f"], // lime
+];
+
+function hashCode(s: string): number {
+  let h = 0;
+  for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) | 0;
+  return Math.abs(h);
+}
+
 export default function Flag({ code, alt, size = 16 }: Props) {
-  const h = Math.round(size * 0.75);
-  const w = size;
-  const c = code.toLowerCase();
+  const label = (code || "??").slice(0, 2).toUpperCase();
+  const [bg] = PALETTE[hashCode(label) % PALETTE.length];
+  const px = Math.max(14, size);
   return (
-    <img
-      src={`https://flagcdn.com/${w * 2}x${h * 2}/${c}.png`}
-      srcSet={`https://flagcdn.com/${w * 3}x${h * 3}/${c}.png 1.5x, https://flagcdn.com/${w * 4}x${h * 4}/${c}.png 2x`}
-      alt={alt}
-      width={w}
-      height={h}
-      loading="lazy"
-      className="inline-block align-middle rounded-[2px] shadow-[0_0_0_0.5px_rgba(0,0,0,0.18)]"
-    />
+    <span
+      role="img"
+      aria-label={alt}
+      title={alt}
+      className="inline-flex select-none items-center justify-center rounded-[4px] font-semibold tracking-tight text-white"
+      style={{
+        background: bg,
+        width: px + 4,
+        height: px,
+        fontSize: Math.round(px * 0.55),
+        lineHeight: 1,
+        letterSpacing: "0.01em",
+      }}
+    >
+      {label}
+    </span>
   );
 }

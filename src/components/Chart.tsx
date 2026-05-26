@@ -13,6 +13,7 @@ import {
 import type { CountryFile } from "@/lib/types";
 
 export type ChartRange = "5Y" | "10Y" | "20Y" | "50Y" | "MAX";
+export type ChartScale = "linear" | "log";
 
 type Series = { meta: { iso2: string; name: string; color: string }; data: CountryFile["history"] };
 
@@ -34,11 +35,26 @@ function decimate<T>(arr: T[], target = 360): T[] {
   return out;
 }
 
-function Chart({ series, range }: { series: Series[]; range: ChartRange }) {
+function fmtMonth(d: string) {
+  // d is "YYYY-MM" (monthly) or "YYYY-MM-DD". Render as "Jun 2024".
+  const iso = d.length === 7 ? `${d}-01` : d;
+  const dt = new Date(iso);
+  if (Number.isNaN(+dt)) return d;
+  return dt.toLocaleDateString(undefined, { month: "short", year: "numeric" });
+}
+
+function Chart({
+  series,
+  range,
+  scale = "linear",
+}: {
+  series: Series[];
+  range: ChartRange;
+  scale?: ChartScale;
+}) {
   const { rows } = useMemo(() => {
     if (!series.length) return { rows: [] as Record<string, number | string>[] };
     const floor = rangeFloor(range);
-    // Per-line slice + decimate first → merge after, so per-series cost stays small.
     const slimmed = series.map((s) => {
       const filtered = floor ? s.data.filter((o) => o.d >= floor) : s.data;
       return { iso: s.meta.iso2, data: decimate(filtered) };
@@ -51,17 +67,19 @@ function Chart({ series, range }: { series: Series[]; range: ChartRange }) {
           row = { d: obs.d };
           byDate.set(obs.d, row);
         }
-        row[s.iso] = obs.v;
+        // Log scale chokes on <= 0; clamp to a tiny positive for plotting only.
+        row[s.iso] = scale === "log" && obs.v <= 0 ? 0.01 : obs.v;
       }
     }
     const rows = [...byDate.values()].sort((a, b) => ((a.d as string) < (b.d as string) ? -1 : 1));
     return { rows };
-  }, [series, range]);
+  }, [series, range, scale]);
 
   if (!series.length) {
     return (
-      <div className="flex h-full min-h-[340px] items-center justify-center text-sm text-neutral-500 dark:text-neutral-400">
-        Select countries from the list to plot their policy rate history.
+      <div className="flex h-full min-h-[340px] flex-col items-center justify-center gap-1 text-sm text-neutral-500 dark:text-neutral-400">
+        <span className="font-medium">No countries selected</span>
+        <span className="text-xs opacity-70">Pick a country from the table below to plot its policy rate.</span>
       </div>
     );
   }
@@ -75,21 +93,24 @@ function Chart({ series, range }: { series: Series[]; range: ChartRange }) {
           tick={{ fontSize: 11, fill: "currentColor", opacity: 0.55 }}
           tickLine={false}
           axisLine={false}
-          minTickGap={36}
+          minTickGap={48}
           tickFormatter={(d: string) => d.slice(0, 4)}
         />
         <YAxis
           tick={{ fontSize: 11, fill: "currentColor", opacity: 0.55 }}
           tickLine={false}
           axisLine={false}
-          width={36}
+          width={42}
+          scale={scale}
+          domain={scale === "log" ? [0.05, "auto"] : ["auto", "auto"]}
+          allowDataOverflow={false}
           tickFormatter={(v: number) => `${v}%`}
         />
         <Tooltip
           isAnimationActive={false}
           cursor={{ stroke: "currentColor", strokeOpacity: 0.18 }}
           contentStyle={{
-            background: "rgba(20,22,28,0.94)",
+            background: "rgba(20,22,28,0.96)",
             border: "1px solid rgba(255,255,255,0.08)",
             borderRadius: 12,
             color: "white",
@@ -99,8 +120,8 @@ function Chart({ series, range }: { series: Series[]; range: ChartRange }) {
           }}
           labelStyle={{ color: "rgba(255,255,255,0.6)", marginBottom: 4, fontWeight: 600 }}
           itemStyle={{ padding: "1px 0" }}
-          formatter={(v: number, name: string) => [`${v?.toFixed(2)}%`, name]}
-          labelFormatter={(d: string) => d}
+          formatter={(v: number, name: string) => [v == null ? "—" : `${v.toFixed(2)}%`, name]}
+          labelFormatter={(d: string) => fmtMonth(d)}
         />
         {series.map((s) => (
           <Line
@@ -111,7 +132,7 @@ function Chart({ series, range }: { series: Series[]; range: ChartRange }) {
             stroke={s.meta.color}
             strokeWidth={1.75}
             dot={false}
-            activeDot={{ r: 3, strokeWidth: 0 }}
+            activeDot={{ r: 3.5, strokeWidth: 0 }}
             connectNulls
             isAnimationActive={false}
           />
