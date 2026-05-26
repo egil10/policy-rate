@@ -1,0 +1,814 @@
+{
+  "generatedAt": "2026-05-26T08:00:48.764Z",
+  "totals": {
+    "countriesSurfaced": 123,
+    "withHistorySeries": 49,
+    "currentOnly": 74
+  },
+  "withHistory": [
+    {
+      "iso2": "AR",
+      "name": "Argentina",
+      "historyStart": "1993-04",
+      "historyEnd": "2025-06",
+      "historyCount": 386
+    },
+    {
+      "iso2": "AU",
+      "name": "Australia",
+      "historyStart": "1976-04",
+      "historyEnd": "2026-04",
+      "historyCount": 601
+    },
+    {
+      "iso2": "AT",
+      "name": "Austria (legacy)",
+      "historyStart": "1945-04",
+      "historyEnd": "1998-12",
+      "historyCount": 645
+    },
+    {
+      "iso2": "BE",
+      "name": "Belgium (legacy)",
+      "historyStart": "1945-01",
+      "historyEnd": "1998-12",
+      "historyCount": 648
+    },
+    {
+      "iso2": "BR",
+      "name": "Brazil",
+      "historyStart": "1986-06",
+      "historyEnd": "2026-04",
+      "historyCount": 479
+    },
+    {
+      "iso2": "CA",
+      "name": "Canada",
+      "historyStart": "1960-07",
+      "historyEnd": "2026-04",
+      "historyCount": 790
+    },
+    {
+      "iso2": "CL",
+      "name": "Chile",
+      "historyStart": "1997-02",
+      "historyEnd": "2026-04",
+      "historyCount": 351
+    },
+    {
+      "iso2": "CN",
+      "name": "China",
+      "historyStart": "1996-01",
+      "historyEnd": "2026-04",
+      "historyCount": 364
+    },
+    {
+      "iso2": "CO",
+      "name": "Colombia",
+      "historyStart": "1995-04",
+      "historyEnd": "2026-04",
+      "historyCount": 373
+    },
+    {
+      "iso2": "HR",
+      "name": "Croatia",
+      "historyStart": "1993-01",
+      "historyEnd": "2022-07",
+      "historyCount": 308
+    },
+    {
+      "iso2": "CZ",
+      "name": "Czech Republic",
+      "historyStart": "1995-12",
+      "historyEnd": "2026-04",
+      "historyCount": 365
+    },
+    {
+      "iso2": "DK",
+      "name": "Denmark",
+      "historyStart": "1946-01",
+      "historyEnd": "2026-04",
+      "historyCount": 964
+    },
+    {
+      "iso2": "XM",
+      "name": "Eurozone",
+      "historyStart": "1999-01",
+      "historyEnd": "2026-04",
+      "historyCount": 328
+    },
+    {
+      "iso2": "FR",
+      "name": "France (legacy)",
+      "historyStart": "1945-01",
+      "historyEnd": "1998-12",
+      "historyCount": 648
+    },
+    {
+      "iso2": "DE",
+      "name": "Germany (legacy)",
+      "historyStart": "1948-07",
+      "historyEnd": "1998-12",
+      "historyCount": 606
+    },
+    {
+      "iso2": "GR",
+      "name": "Greece (legacy)",
+      "historyStart": "1956-05",
+      "historyEnd": "2000-12",
+      "historyCount": 536
+    },
+    {
+      "iso2": "HK",
+      "name": "Hong Kong",
+      "historyStart": "1998-09",
+      "historyEnd": "2026-04",
+      "historyCount": 332
+    },
+    {
+      "iso2": "HU",
+      "name": "Hungary",
+      "historyStart": "1987-01",
+      "historyEnd": "2026-04",
+      "historyCount": 472
+    },
+    {
+      "iso2": "IS",
+      "name": "Iceland",
+      "historyStart": "1998-03",
+      "historyEnd": "2026-04",
+      "historyCount": 338
+    },
+    {
+      "iso2": "IN",
+      "name": "India",
+      "historyStart": "1946-01",
+      "historyEnd": "2026-03",
+      "historyCount": 963
+    },
+    {
+      "iso2": "ID",
+      "name": "Indonesia",
+      "historyStart": "2005-07",
+      "historyEnd": "2026-04",
+      "historyCount": 250
+    },
+    {
+      "iso2": "IL",
+      "name": "Israel",
+      "historyStart": "1993-07",
+      "historyEnd": "2026-04",
+      "historyCount": 394
+    },
+    {
+      "iso2": "IT",
+      "name": "Italy (legacy)",
+      "historyStart": "1945-01",
+      "historyEnd": "1998-12",
+      "historyCount": 648
+    },
+    {
+      "iso2": "JP",
+      "name": "Japan",
+      "historyStart": "1946-01",
+      "historyEnd": "2026-04",
+      "historyCount": 848
+    },
+    {
+      "iso2": "KW",
+      "name": "Kuwait",
+      "historyStart": "2002-06",
+      "historyEnd": "2026-04",
+      "historyCount": 287
+    },
+    {
+      "iso2": "MY",
+      "name": "Malaysia",
+      "historyStart": "1995-11",
+      "historyEnd": "2026-04",
+      "historyCount": 366
+    },
+    {
+      "iso2": "MX",
+      "name": "Mexico",
+      "historyStart": "1998-11",
+      "historyEnd": "2026-04",
+      "historyCount": 330
+    },
+    {
+      "iso2": "MA",
+      "name": "Morocco",
+      "historyStart": "2001-01",
+      "historyEnd": "2026-03",
+      "historyCount": 303
+    },
+    {
+      "iso2": "NL",
+      "name": "Netherlands (legacy)",
+      "historyStart": "1945-01",
+      "historyEnd": "1998-12",
+      "historyCount": 648
+    },
+    {
+      "iso2": "NZ",
+      "name": "New Zealand",
+      "historyStart": "1985-01",
+      "historyEnd": "2026-04",
+      "historyCount": 496
+    },
+    {
+      "iso2": "MK",
+      "name": "North Macedonia",
+      "historyStart": "2000-01",
+      "historyEnd": "2026-04",
+      "historyCount": 316
+    },
+    {
+      "iso2": "NO",
+      "name": "Norway",
+      "historyStart": "1986-03",
+      "historyEnd": "2026-04",
+      "historyCount": 482
+    },
+    {
+      "iso2": "PE",
+      "name": "Peru",
+      "historyStart": "2003-09",
+      "historyEnd": "2026-04",
+      "historyCount": 272
+    },
+    {
+      "iso2": "PH",
+      "name": "Philippines",
+      "historyStart": "1986-01",
+      "historyEnd": "2026-04",
+      "historyCount": 474
+    },
+    {
+      "iso2": "PL",
+      "name": "Poland",
+      "historyStart": "1993-01",
+      "historyEnd": "2026-04",
+      "historyCount": 400
+    },
+    {
+      "iso2": "PT",
+      "name": "Portugal (legacy)",
+      "historyStart": "1945-01",
+      "historyEnd": "1998-12",
+      "historyCount": 648
+    },
+    {
+      "iso2": "RO",
+      "name": "Romania",
+      "historyStart": "2003-01",
+      "historyEnd": "2026-04",
+      "historyCount": 280
+    },
+    {
+      "iso2": "RU",
+      "name": "Russia",
+      "historyStart": "1992-01",
+      "historyEnd": "2026-04",
+      "historyCount": 412
+    },
+    {
+      "iso2": "SA",
+      "name": "Saudi Arabia",
+      "historyStart": "2000-01",
+      "historyEnd": "2026-04",
+      "historyCount": 316
+    },
+    {
+      "iso2": "RS",
+      "name": "Serbia",
+      "historyStart": "1997-01",
+      "historyEnd": "2026-04",
+      "historyCount": 352
+    },
+    {
+      "iso2": "ZA",
+      "name": "South Africa",
+      "historyStart": "1980-12",
+      "historyEnd": "2026-04",
+      "historyCount": 545
+    },
+    {
+      "iso2": "KR",
+      "name": "South Korea",
+      "historyStart": "1999-05",
+      "historyEnd": "2026-04",
+      "historyCount": 324
+    },
+    {
+      "iso2": "ES",
+      "name": "Spain (legacy)",
+      "historyStart": "1945-01",
+      "historyEnd": "1998-12",
+      "historyCount": 648
+    },
+    {
+      "iso2": "SE",
+      "name": "Sweden",
+      "historyStart": "1946-01",
+      "historyEnd": "2026-04",
+      "historyCount": 964
+    },
+    {
+      "iso2": "CH",
+      "name": "Switzerland",
+      "historyStart": "1946-01",
+      "historyEnd": "2026-04",
+      "historyCount": 964
+    },
+    {
+      "iso2": "TH",
+      "name": "Thailand",
+      "historyStart": "2000-05",
+      "historyEnd": "2026-04",
+      "historyCount": 312
+    },
+    {
+      "iso2": "TR",
+      "name": "Turkey",
+      "historyStart": "2002-02",
+      "historyEnd": "2026-04",
+      "historyCount": 291
+    },
+    {
+      "iso2": "GB",
+      "name": "United Kingdom",
+      "historyStart": "1946-01",
+      "historyEnd": "2026-04",
+      "historyCount": 964
+    },
+    {
+      "iso2": "US",
+      "name": "United States",
+      "historyStart": "1954-07",
+      "historyEnd": "2026-04",
+      "historyCount": 862
+    }
+  ],
+  "currentOnly": [
+    {
+      "iso2": "AF",
+      "name": "Afghanistan",
+      "rate": 6,
+      "rateDate": "2021-07-24"
+    },
+    {
+      "iso2": "AL",
+      "name": "Albania",
+      "rate": 2.5,
+      "rateDate": "2025-07-02"
+    },
+    {
+      "iso2": "DZ",
+      "name": "Algeria",
+      "rate": 3,
+      "rateDate": "2020-04-29"
+    },
+    {
+      "iso2": "AO",
+      "name": "Angola",
+      "rate": 17.5,
+      "rateDate": "2026-01-14"
+    },
+    {
+      "iso2": "AM",
+      "name": "Armenia",
+      "rate": 6.5,
+      "rateDate": "2025-12-16"
+    },
+    {
+      "iso2": "AZ",
+      "name": "Azerbaijan",
+      "rate": 6.5,
+      "rateDate": "2026-02-04"
+    },
+    {
+      "iso2": "BS",
+      "name": "Bahamas",
+      "rate": 4,
+      "rateDate": "2016-12-22"
+    },
+    {
+      "iso2": "BH",
+      "name": "Bahrain",
+      "rate": 4.25,
+      "rateDate": "2025-12-11"
+    },
+    {
+      "iso2": "BD",
+      "name": "Bangladesh",
+      "rate": 10,
+      "rateDate": "2024-10-27"
+    },
+    {
+      "iso2": "BB",
+      "name": "Barbados",
+      "rate": 2,
+      "rateDate": "2020-04-01"
+    },
+    {
+      "iso2": "BY",
+      "name": "Belarus",
+      "rate": 9.25,
+      "rateDate": "2026-05-20"
+    },
+    {
+      "iso2": "BO",
+      "name": "Bolivia",
+      "rate": 3.26,
+      "rateDate": "2025-12-01"
+    },
+    {
+      "iso2": "BW",
+      "name": "Botswana",
+      "rate": 1.9,
+      "rateDate": "2024-08-22"
+    },
+    {
+      "iso2": "BG",
+      "name": "Bulgaria",
+      "rate": 1.81,
+      "rateDate": "2025-12-01"
+    },
+    {
+      "iso2": "CV",
+      "name": "Cape Verde",
+      "rate": 1.5,
+      "rateDate": "2024-05-16"
+    },
+    {
+      "iso2": "CF",
+      "name": "Central African States",
+      "rate": 4.5,
+      "rateDate": "2025-03-24"
+    },
+    {
+      "iso2": "CR",
+      "name": "Costa Rica",
+      "rate": 3.5,
+      "rateDate": "2025-09-18"
+    },
+    {
+      "iso2": "CW",
+      "name": "Curacao",
+      "rate": 4.5,
+      "rateDate": "2025-09-22"
+    },
+    {
+      "iso2": "DO",
+      "name": "Dominican Republic",
+      "rate": 5.5,
+      "rateDate": "2025-09-30"
+    },
+    {
+      "iso2": "CD",
+      "name": "DR Congo",
+      "rate": 13.5,
+      "rateDate": "2026-04-09"
+    },
+    {
+      "iso2": "XC",
+      "name": "Eastern Caribbean",
+      "rate": 3,
+      "rateDate": "2024-01-28"
+    },
+    {
+      "iso2": "EG",
+      "name": "Egypt",
+      "rate": 19,
+      "rateDate": "2026-02-12"
+    },
+    {
+      "iso2": "SZ",
+      "name": "Eswatini",
+      "rate": 6.75,
+      "rateDate": "2025-05-30"
+    },
+    {
+      "iso2": "FJ",
+      "name": "Fiji",
+      "rate": 0.25,
+      "rateDate": "2020-03-18"
+    },
+    {
+      "iso2": "GM",
+      "name": "Gambia",
+      "rate": 14,
+      "rateDate": "2026-02-26"
+    },
+    {
+      "iso2": "GE",
+      "name": "Georgia",
+      "rate": 8.25,
+      "rateDate": "2026-05-07"
+    },
+    {
+      "iso2": "GH",
+      "name": "Ghana",
+      "rate": 14,
+      "rateDate": "2026-03-18"
+    },
+    {
+      "iso2": "GT",
+      "name": "Guatemala",
+      "rate": 4,
+      "rateDate": "2025-09-24"
+    },
+    {
+      "iso2": "HN",
+      "name": "Honduras",
+      "rate": 5.75,
+      "rateDate": "2024-10-28"
+    },
+    {
+      "iso2": "IR",
+      "name": "Iran",
+      "rate": 23,
+      "rateDate": "2023-03-08"
+    },
+    {
+      "iso2": "JM",
+      "name": "Jamaica",
+      "rate": 5.75,
+      "rateDate": "2025-05-21"
+    },
+    {
+      "iso2": "JO",
+      "name": "Jordan",
+      "rate": 5.75,
+      "rateDate": "2025-12-14"
+    },
+    {
+      "iso2": "KZ",
+      "name": "Kazakhstan",
+      "rate": 18,
+      "rateDate": "2025-10-13"
+    },
+    {
+      "iso2": "KE",
+      "name": "Kenya",
+      "rate": 8.75,
+      "rateDate": "2026-02-10"
+    },
+    {
+      "iso2": "KG",
+      "name": "Kyrgyzstan",
+      "rate": 12,
+      "rateDate": "2026-02-24"
+    },
+    {
+      "iso2": "LB",
+      "name": "Lebanon",
+      "rate": 20,
+      "rateDate": "2023-04-01"
+    },
+    {
+      "iso2": "LS",
+      "name": "Lesotho",
+      "rate": 6.5,
+      "rateDate": "2025-11-25"
+    },
+    {
+      "iso2": "MO",
+      "name": "Macau",
+      "rate": 4,
+      "rateDate": "2025-12-11"
+    },
+    {
+      "iso2": "MW",
+      "name": "Malawi",
+      "rate": 24,
+      "rateDate": "2026-03-05"
+    },
+    {
+      "iso2": "MU",
+      "name": "Mauritius",
+      "rate": 4.5,
+      "rateDate": "2025-02-04"
+    },
+    {
+      "iso2": "MD",
+      "name": "Moldova",
+      "rate": 6.5,
+      "rateDate": "2026-05-07"
+    },
+    {
+      "iso2": "MN",
+      "name": "Mongolia",
+      "rate": 12,
+      "rateDate": "2025-03-10"
+    },
+    {
+      "iso2": "MZ",
+      "name": "Mozambique",
+      "rate": 9.25,
+      "rateDate": "2026-02-28"
+    },
+    {
+      "iso2": "NA",
+      "name": "Namibia",
+      "rate": 6.5,
+      "rateDate": "2025-10-15"
+    },
+    {
+      "iso2": "NI",
+      "name": "Nicaragua",
+      "rate": 6,
+      "rateDate": "2025-10-02"
+    },
+    {
+      "iso2": "NG",
+      "name": "Nigeria",
+      "rate": 26.5,
+      "rateDate": "2026-02-23"
+    },
+    {
+      "iso2": "OM",
+      "name": "Oman",
+      "rate": 4.5,
+      "rateDate": "2025-10-29"
+    },
+    {
+      "iso2": "PK",
+      "name": "Pakistan",
+      "rate": 11.5,
+      "rateDate": "2026-04-27"
+    },
+    {
+      "iso2": "PG",
+      "name": "Papua New Guinea",
+      "rate": 5,
+      "rateDate": "2025-09-02"
+    },
+    {
+      "iso2": "PY",
+      "name": "Paraguay",
+      "rate": 5.75,
+      "rateDate": "2026-02-21"
+    },
+    {
+      "iso2": "QA",
+      "name": "Qatar",
+      "rate": 4.1,
+      "rateDate": "2025-12-11"
+    },
+    {
+      "iso2": "RW",
+      "name": "Rwanda",
+      "rate": 6.75,
+      "rateDate": "2025-08-21"
+    },
+    {
+      "iso2": "WS",
+      "name": "Samoa",
+      "rate": 2.95,
+      "rateDate": "2026-01-15"
+    },
+    {
+      "iso2": "SC",
+      "name": "Seychelles",
+      "rate": 1.75,
+      "rateDate": "2024-03-26"
+    },
+    {
+      "iso2": "SL",
+      "name": "Sierra Leone",
+      "rate": 16.75,
+      "rateDate": "2025-12-16"
+    },
+    {
+      "iso2": "SX",
+      "name": "Sint Maarten",
+      "rate": 4.5,
+      "rateDate": "2025-09-22"
+    },
+    {
+      "iso2": "SS",
+      "name": "South Sudan",
+      "rate": 13,
+      "rateDate": "2025-06-10"
+    },
+    {
+      "iso2": "LK",
+      "name": "Sri Lanka",
+      "rate": 7.75,
+      "rateDate": "2025-05-22"
+    },
+    {
+      "iso2": "SR",
+      "name": "Suriname",
+      "rate": 10,
+      "rateDate": "2013-09-18"
+    },
+    {
+      "iso2": "TW",
+      "name": "Taiwan",
+      "rate": 2,
+      "rateDate": "2024-03-22"
+    },
+    {
+      "iso2": "TJ",
+      "name": "Tajikistan",
+      "rate": 7,
+      "rateDate": "2026-02-02"
+    },
+    {
+      "iso2": "TZ",
+      "name": "Tanzania",
+      "rate": 6,
+      "rateDate": "2024-04-04"
+    },
+    {
+      "iso2": "TT",
+      "name": "Trinidad and Tobago",
+      "rate": 3.5,
+      "rateDate": "2020-03-17"
+    },
+    {
+      "iso2": "TN",
+      "name": "Tunisia",
+      "rate": 7.5,
+      "rateDate": "2025-03-27"
+    },
+    {
+      "iso2": "UG",
+      "name": "Uganda",
+      "rate": 9.75,
+      "rateDate": "2024-10-07"
+    },
+    {
+      "iso2": "UA",
+      "name": "Ukraine",
+      "rate": 15.5,
+      "rateDate": "2025-03-07"
+    },
+    {
+      "iso2": "AE",
+      "name": "United Arab Emirates",
+      "rate": 3.65,
+      "rateDate": "2025-12-11"
+    },
+    {
+      "iso2": "UY",
+      "name": "Uruguay",
+      "rate": 5.75,
+      "rateDate": "2026-03-03"
+    },
+    {
+      "iso2": "UZ",
+      "name": "Uzbekistan",
+      "rate": 14,
+      "rateDate": "2025-03-24"
+    },
+    {
+      "iso2": "VE",
+      "name": "Venezuela",
+      "rate": 58.6,
+      "rateDate": "2026-01-03"
+    },
+    {
+      "iso2": "VN",
+      "name": "Vietnam",
+      "rate": 4.5,
+      "rateDate": "2023-06-16"
+    },
+    {
+      "iso2": "XA",
+      "name": "West African States",
+      "rate": 3.25,
+      "rateDate": "2025-06-16"
+    },
+    {
+      "iso2": "ZM",
+      "name": "Zambia",
+      "rate": 13.5,
+      "rateDate": "2026-02-10"
+    },
+    {
+      "iso2": "ZW",
+      "name": "Zimbabwe",
+      "rate": 35,
+      "rateDate": "2024-09-27"
+    }
+  ],
+  "unknownBisReferenceAreas": [],
+  "wikipediaNamesUnmapped": [],
+  "sources": {
+    "historical": {
+      "name": "BIS Central Bank Policy Rates (WS_CBPOL)",
+      "url": "https://data.bis.org/topics/CBPOL",
+      "bulk": "https://data.bis.org/static/bulk/WS_CBPOL_csv_flat.zip",
+      "frequency": "Monthly, end of period"
+    },
+    "current": {
+      "name": "Wikipedia — List of countries by central bank interest rates",
+      "url": "https://en.wikipedia.org/wiki/List_of_countries_by_central_bank_interest_rates",
+      "snapshotDate": "2026-05-26"
+    }
+  }
+}
