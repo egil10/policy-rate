@@ -48,11 +48,15 @@ function Chart({
   range,
   scale = "linear",
   focusedIso = null,
+  onFocus,
+  onPin,
 }: {
   series: Series[];
   range: ChartRange;
   scale?: ChartScale;
   focusedIso?: string | null;
+  onFocus?: (iso: string | null) => void;
+  onPin?: (iso: string) => void;
 }) {
   // Render focused last so it paints on top.
   const ordered = useMemo(() => {
@@ -151,6 +155,28 @@ function Chart({
             />
           );
         })}
+        {/* Wide transparent "picker" lines stacked on top to widen the click/hover target.
+            Rendered after the visible lines so they capture events without altering the look. */}
+        {(onFocus || onPin) &&
+          ordered.map((s) => (
+            <Line
+              key={`pick-${s.meta.iso2}`}
+              type="monotone"
+              dataKey={s.meta.iso2}
+              stroke="rgba(0,0,0,0)"
+              strokeWidth={14}
+              dot={false}
+              activeDot={false}
+              legendType="none"
+              tooltipType="none"
+              connectNulls
+              isAnimationActive={false}
+              style={{ cursor: onPin ? "pointer" : "default" }}
+              onMouseEnter={() => onFocus?.(s.meta.iso2)}
+              onMouseLeave={() => onFocus?.(null)}
+              onClick={() => onPin?.(s.meta.iso2)}
+            />
+          ))}
       </LineChart>
     </ResponsiveContainer>
   );

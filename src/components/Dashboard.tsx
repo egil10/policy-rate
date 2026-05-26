@@ -331,11 +331,18 @@ export default function Dashboard({ index, coverage, preloadedSeries, defaultSel
           </div>
         </div>
         <div className="h-[360px] sm:h-[440px]">
-          <Chart series={chartSeries} range={range} scale={scale} focusedIso={focusedIso} />
+          <Chart
+            series={chartSeries}
+            range={range}
+            scale={scale}
+            focusedIso={focusedIso}
+            onFocus={setHoveredIso}
+            onPin={togglePin}
+          />
         </div>
         {selectedRows.length > 1 && (
           <p className="mt-2 text-[11px] text-neutral-500 dark:text-neutral-400">
-            Hover a pill to highlight one line · click a pill to pin it
+            Hover a line or pill to highlight · click to pin
             {pinnedIso ? <> · <button onClick={() => setPinnedIso(null)} className="underline-offset-2 hover:underline">unpin</button></> : null}
           </p>
         )}
