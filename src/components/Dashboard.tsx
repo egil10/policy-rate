@@ -1,6 +1,14 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import {
+  memo,
+  useCallback,
+  useDeferredValue,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import {
   ArrowDown,
   ArrowUp,
@@ -19,7 +27,6 @@ import type { CountryFile, CountrySummary, Coverage } from "@/lib/types";
 
 const CONTINENTS = ["All", "Africa", "Americas", "Asia", "Europe", "Oceania"] as const;
 type Continent = (typeof CONTINENTS)[number];
-
 type SortKey = "name" | "rate-desc" | "rate-asc" | "changed";
 
 const PALETTE = [
@@ -28,7 +35,7 @@ const PALETTE = [
   "#ff6482", "#62cef0", "#a679e8", "#f7c548", "#7bc62d",
 ];
 
-const DEFAULT_SELECTION = ["US", "XM", "GB", "JP", "CN"];
+const RANGES: ChartRange[] = ["5Y", "10Y", "20Y", "50Y", "MAX"];
 
 function fmtPct(v: number | null | undefined) {
   return v == null ? "—" : `${v.toFixed(2)}%`;
@@ -41,63 +48,81 @@ function fmtDate(iso: string | null | undefined) {
   return d.toLocaleDateString(undefined, { year: "numeric", month: "short", day: "2-digit" });
 }
 
-function monthsBetween(a: string, b: string) {
-  // YYYY-MM strings
-  const [ay, am] = a.split("-").map(Number);
-  const [by, bm] = b.split("-").map(Number);
-  return (by - ay) * 12 + (bm - am);
-}
-
-export default function Dashboard({
-  index,
-  coverage,
-}: {
+type Props = {
   index: CountrySummary[];
   coverage: Coverage;
-}) {
+  preloadedSeries: Record<string, CountryFile>;
+  defaultSelection: string[];
+};
+
+export default function Dashboard({ index, coverage, preloadedSeries, defaultSelection }: Props) {
   const [query, setQuery] = useState("");
+  const deferredQuery = useDeferredValue(query);
   const [continent, setContinent] = useState<Continent>("All");
   const [sort, setSort] = useState<SortKey>("rate-desc");
-  const [selected, setSelected] = useState<string[]>(DEFAULT_SELECTION);
-  const [cache, setCache] = useState<Record<string, CountryFile>>({});
+  const [selected, setSelected] = useState<string[]>(defaultSelection);
+  const [cache, setCache] = useState<Record<string, CountryFile>>(preloadedSeries);
   const [range, setRange] = useState<ChartRange>("20Y");
   const [showCoverage, setShowCoverage] = useState(false);
   const [onlyHistory, setOnlyHistory] = useState(false);
 
-  // Fetch series for any selected country missing from cache.
+  // Batched fetch — one Promise.all per "selected" change, one setState when ready.
+  // inflight set deduplicates across renders even when cache hasn't settled yet.
+  const inflight = useRef<Set<string>>(new Set());
   useEffect(() => {
-    const needed = selected.filter((iso) => !cache[iso]);
-    if (!needed.length) return;
+    const missing = selected.filter((iso) => !cache[iso] && !inflight.current.has(iso));
+    if (!missing.length) return;
+    missing.forEach((iso) => inflight.current.add(iso));
     let alive = true;
-    Promise.all(
-      needed.map((iso) =>
-        fetch(`/data/series/${iso}.json`)
-          .then((r) => (r.ok ? r.json() : null))
-          .catch(() => null),
-      ),
-    ).then((files) => {
-      if (!alive) return;
+    (async () => {
+      const results = await Promise.all(
+        missing.map((iso) =>
+          fetch(`/data/series/${iso}.json`)
+            .then((r) => (r.ok ? (r.json() as Promise<CountryFile>) : null))
+            .catch(() => null),
+        ),
+      );
+      if (!alive) {
+        missing.forEach((iso) => inflight.current.delete(iso));
+        return;
+      }
       const next: Record<string, CountryFile> = {};
-      files.forEach((f, i) => {
-        if (f) next[needed[i]] = f;
+      results.forEach((f, i) => {
+        const iso = missing[i];
+        inflight.current.delete(iso);
+        if (f) next[iso] = f;
       });
       if (Object.keys(next).length) setCache((c) => ({ ...c, ...next }));
-    });
+    })();
     return () => {
       alive = false;
     };
   }, [selected, cache]);
 
+  const toggle = useCallback((iso: string) => {
+    setSelected((sel) => (sel.includes(iso) ? sel.filter((x) => x !== iso) : [...sel, iso]));
+  }, []);
+  const remove = useCallback((iso: string) => {
+    setSelected((sel) => sel.filter((x) => x !== iso));
+  }, []);
+  const clearSelection = useCallback(() => setSelected([]), []);
+
+  const pickTop = useCallback(
+    (kind: "highest" | "lowest") => {
+      const withRate = index.filter((c) => c.rate != null) as (CountrySummary & { rate: number })[];
+      const sorted = withRate.slice().sort((a, b) => (kind === "highest" ? b.rate - a.rate : a.rate - b.rate));
+      setSelected(sorted.slice(0, 8).map((c) => c.iso2));
+    },
+    [index],
+  );
+
   const filtered = useMemo(() => {
-    let rows = index.slice();
+    const q = deferredQuery.trim().toLowerCase();
+    let rows = index;
     if (continent !== "All") rows = rows.filter((c) => c.continent === continent);
     if (onlyHistory) rows = rows.filter((c) => c.hasHistory);
-    if (query) {
-      const q = query.toLowerCase();
-      rows = rows.filter(
-        (c) => c.name.toLowerCase().includes(q) || c.iso2.toLowerCase().includes(q),
-      );
-    }
+    if (q) rows = rows.filter((c) => c.name.toLowerCase().includes(q) || c.iso2.toLowerCase().includes(q));
+    rows = rows.slice();
     switch (sort) {
       case "name":
         rows.sort((a, b) => a.name.localeCompare(b.name));
@@ -113,7 +138,7 @@ export default function Dashboard({
         break;
     }
     return rows;
-  }, [index, continent, query, sort, onlyHistory]);
+  }, [index, continent, deferredQuery, sort, onlyHistory]);
 
   const stats = useMemo(() => {
     const withRate = index.filter((c) => c.rate != null) as (CountrySummary & { rate: number })[];
@@ -129,20 +154,6 @@ export default function Dashboard({
       avg: withRate.reduce((s, c) => s + c.rate, 0) / Math.max(1, withRate.length),
     };
   }, [index]);
-
-  function toggle(iso: string) {
-    setSelected((sel) => (sel.includes(iso) ? sel.filter((x) => x !== iso) : [...sel, iso]));
-  }
-
-  function clearSelection() {
-    setSelected([]);
-  }
-
-  function pickTop(kind: "highest" | "lowest") {
-    const withRate = index.filter((c) => c.rate != null) as (CountrySummary & { rate: number })[];
-    const sorted = withRate.slice().sort((a, b) => (kind === "highest" ? b.rate - a.rate : a.rate - b.rate));
-    setSelected(sorted.slice(0, 8).map((c) => c.iso2));
-  }
 
   const chartSeries = useMemo(() => {
     return selected
@@ -162,18 +173,18 @@ export default function Dashboard({
     [selected, index],
   );
 
+  const loadingCount = selected.length - chartSeries.length;
+
   return (
     <main className="mx-auto w-full max-w-[1440px] px-4 py-8 sm:px-8 sm:py-12">
       {/* Header */}
-      <header className="mb-8 flex items-start justify-between gap-4 animate-fade-in">
+      <header className="mb-8 flex items-start justify-between gap-4">
         <div>
           <div className="flex items-center gap-2 text-xs uppercase tracking-[0.18em] text-neutral-500 dark:text-neutral-400">
             <Sparkles size={12} className="opacity-70" />
             <span>Central Bank Policy Rates · {stats.total} economies</span>
           </div>
-          <h1 className="mt-2 text-3xl font-semibold tracking-tight sm:text-4xl">
-            Policy Rate
-          </h1>
+          <h1 className="mt-2 text-3xl font-semibold tracking-tight sm:text-4xl">Policy Rate</h1>
           <p className="mt-1 max-w-2xl text-sm text-neutral-600 dark:text-neutral-400">
             Monthly history since 1945 from BIS, current snapshot for {stats.withRate} countries. Click any
             country to overlay it on the chart.
@@ -196,9 +207,9 @@ export default function Dashboard({
       </section>
 
       {/* Chart card */}
-      <section className="glass mb-6 rounded-3xl p-4 sm:p-6 animate-slide-up">
+      <section className="glass mb-6 rounded-3xl p-4 sm:p-6">
         <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
-          <div className="flex flex-wrap items-center gap-2">
+          <div className="flex min-w-0 flex-wrap items-center gap-2">
             <span className="text-xs uppercase tracking-[0.16em] text-neutral-500 dark:text-neutral-400">
               Overlay
             </span>
@@ -206,24 +217,19 @@ export default function Dashboard({
               <span className="text-xs text-neutral-400">no countries selected</span>
             ) : (
               <>
-                {selectedRows.slice(0, 8).map((c, i) => (
-                  <button
+                {selectedRows.slice(0, 10).map((c, i) => (
+                  <SelectedPill
                     key={c.iso2}
-                    onClick={() => toggle(c.iso2)}
-                    className="group inline-flex items-center gap-1.5 rounded-full bg-white/60 px-2.5 py-1 text-xs ring-1 ring-black/5 backdrop-blur dark:bg-white/10 dark:ring-white/10"
-                    title={`Remove ${c.name}`}
-                  >
-                    <span
-                      className="h-2 w-2 rounded-full"
-                      style={{ background: PALETTE[i % PALETTE.length] }}
-                    />
-                    <Flag code={c.flagCode} alt={c.name} size={14} />
-                    <span className="font-medium">{c.name}</span>
-                    <X size={12} className="opacity-40 group-hover:opacity-100" />
-                  </button>
+                    color={PALETTE[i % PALETTE.length]}
+                    country={c}
+                    onRemove={remove}
+                  />
                 ))}
-                {selectedRows.length > 8 && (
-                  <span className="text-xs text-neutral-500">+{selectedRows.length - 8} more</span>
+                {selectedRows.length > 10 && (
+                  <span className="text-xs text-neutral-500">+{selectedRows.length - 10}</span>
+                )}
+                {loadingCount > 0 && (
+                  <span className="text-[11px] text-neutral-500">loading {loadingCount}…</span>
                 )}
                 <button
                   onClick={clearSelection}
@@ -234,21 +240,7 @@ export default function Dashboard({
               </>
             )}
           </div>
-          <div className="flex items-center gap-1 rounded-full bg-black/[0.04] p-1 text-xs dark:bg-white/[0.06]">
-            {(["5Y", "10Y", "20Y", "50Y", "MAX"] as ChartRange[]).map((r) => (
-              <button
-                key={r}
-                onClick={() => setRange(r)}
-                className={`rounded-full px-2.5 py-1 transition ${
-                  range === r
-                    ? "bg-white text-neutral-900 shadow-sm dark:bg-neutral-100/95"
-                    : "text-neutral-500 hover:text-neutral-900 dark:hover:text-neutral-100"
-                }`}
-              >
-                {r}
-              </button>
-            ))}
-          </div>
+          <Segment value={range} onChange={setRange} options={RANGES} />
         </div>
         <div className="h-[360px] sm:h-[440px]">
           <Chart series={chartSeries} range={range} />
@@ -256,7 +248,7 @@ export default function Dashboard({
       </section>
 
       {/* Filters + table */}
-      <section className="glass overflow-hidden rounded-3xl animate-slide-up">
+      <section className="glass overflow-hidden rounded-3xl">
         <div className="flex flex-wrap items-center gap-2 border-b border-black/[0.06] p-3 dark:border-white/[0.08] sm:p-4">
           <label className="flex flex-1 items-center gap-2 rounded-full bg-white/70 px-3 py-1.5 ring-1 ring-black/5 dark:bg-white/[0.06] dark:ring-white/10 sm:min-w-[260px] sm:max-w-sm">
             <Search size={14} className="opacity-50" />
@@ -272,61 +264,37 @@ export default function Dashboard({
               </button>
             )}
           </label>
-          <div className="flex items-center gap-1 rounded-full bg-black/[0.04] p-1 text-xs dark:bg-white/[0.06]">
-            {CONTINENTS.map((c) => (
-              <button
-                key={c}
-                onClick={() => setContinent(c)}
-                className={`rounded-full px-2.5 py-1 transition ${
-                  continent === c
-                    ? "bg-white text-neutral-900 shadow-sm dark:bg-neutral-100/95"
-                    : "text-neutral-500 hover:text-neutral-900 dark:hover:text-neutral-100"
-                }`}
-              >
-                {c}
-              </button>
-            ))}
-          </div>
+          <Segment value={continent} onChange={setContinent} options={CONTINENTS} />
           <button
             onClick={() => setOnlyHistory((x) => !x)}
-            className={`rounded-full px-3 py-1.5 text-xs ring-1 transition ${
-              onlyHistory
-                ? "bg-neutral-900 text-white ring-neutral-900 dark:bg-white dark:text-neutral-900 dark:ring-white"
-                : "ring-black/10 text-neutral-600 hover:text-neutral-900 dark:ring-white/10 dark:text-neutral-300"
-            }`}
+            className={`chip ${onlyHistory ? "chip-active" : ""}`}
           >
             With history
           </button>
-          <button
-            onClick={() => pickTop("highest")}
-            className="rounded-full px-3 py-1.5 text-xs ring-1 ring-black/10 text-neutral-600 hover:text-neutral-900 dark:ring-white/10 dark:text-neutral-300"
-          >
+          <button onClick={() => pickTop("highest")} className="chip">
             Top 8 highest
           </button>
-          <button
-            onClick={() => pickTop("lowest")}
-            className="rounded-full px-3 py-1.5 text-xs ring-1 ring-black/10 text-neutral-600 hover:text-neutral-900 dark:ring-white/10 dark:text-neutral-300"
-          >
+          <button onClick={() => pickTop("lowest")} className="chip">
             Top 8 lowest
           </button>
-          <div className="ml-auto flex items-center gap-1 rounded-full bg-black/[0.04] p-1 text-xs dark:bg-white/[0.06]">
-            <SortBtn active={sort === "name"} onClick={() => setSort("name")}>A–Z</SortBtn>
-            <SortBtn active={sort === "rate-desc"} onClick={() => setSort("rate-desc")}>
-              Rate <ArrowDown size={11} className="ml-0.5" />
-            </SortBtn>
-            <SortBtn active={sort === "rate-asc"} onClick={() => setSort("rate-asc")}>
-              Rate <ArrowUp size={11} className="ml-0.5" />
-            </SortBtn>
-            <SortBtn active={sort === "changed"} onClick={() => setSort("changed")}>
-              Last move
-            </SortBtn>
+          <div className="ml-auto">
+            <Segment
+              value={sort}
+              onChange={setSort}
+              options={[
+                { value: "name", label: "A–Z" },
+                { value: "rate-desc", label: (<>Rate <ArrowDown size={11} className="ml-0.5" /></>) },
+                { value: "rate-asc", label: (<>Rate <ArrowUp size={11} className="ml-0.5" /></>) },
+                { value: "changed", label: "Last move" },
+              ] as { value: SortKey; label: React.ReactNode }[]}
+            />
           </div>
         </div>
 
         {/* Table */}
         <div className="max-h-[640px] overflow-y-auto">
           <table className="w-full text-sm tnum">
-            <thead className="sticky top-0 z-10 bg-white/70 backdrop-blur dark:bg-neutral-900/60">
+            <thead className="sticky top-0 z-10 bg-[color:var(--surface)]">
               <tr className="text-left text-[11px] uppercase tracking-wider text-neutral-500 dark:text-neutral-400">
                 <th className="w-8 px-3 py-2"></th>
                 <th className="px-3 py-2">Country</th>
@@ -337,50 +305,15 @@ export default function Dashboard({
               </tr>
             </thead>
             <tbody>
-              {filtered.map((c, i) => {
-                const isSel = selected.includes(c.iso2);
+              {filtered.map((c) => {
                 const palIdx = selected.indexOf(c.iso2);
                 return (
-                  <tr
+                  <CountryRow
                     key={c.iso2}
-                    onClick={() => toggle(c.iso2)}
-                    className={`group cursor-pointer border-t border-black/[0.04] transition-colors dark:border-white/[0.05] ${
-                      isSel
-                        ? "bg-blue-500/[0.06] dark:bg-blue-400/[0.08]"
-                        : "hover:bg-black/[0.03] dark:hover:bg-white/[0.04]"
-                    }`}
-                  >
-                    <td className="px-3 py-2">
-                      {isSel ? (
-                        <span
-                          className="block h-2.5 w-2.5 rounded-full"
-                          style={{ background: PALETTE[palIdx % PALETTE.length] }}
-                        />
-                      ) : (
-                        <span className="block h-2.5 w-2.5 rounded-full ring-1 ring-black/15 dark:ring-white/20" />
-                      )}
-                    </td>
-                    <td className="px-3 py-2">
-                      <div className="flex items-center gap-2">
-                        <Flag code={c.flagCode} alt={c.name} size={18} />
-                        <span className="font-medium">{c.name}</span>
-                        <span className="text-[11px] text-neutral-400">{c.iso2}</span>
-                      </div>
-                    </td>
-                    <td className="px-3 py-2 text-neutral-500">{c.continent}</td>
-                    <td className="px-3 py-2 text-right font-semibold">{fmtPct(c.rate)}</td>
-                    <td className="px-3 py-2 text-neutral-500">{fmtDate(c.rateDate)}</td>
-                    <td className="px-3 py-2 text-neutral-500">
-                      {c.hasHistory ? (
-                        <span>
-                          {c.historyStart?.slice(0, 4)}–{c.historyEnd?.slice(0, 4)}{" "}
-                          <span className="text-neutral-400">({c.historyCount} obs)</span>
-                        </span>
-                      ) : (
-                        <span className="text-neutral-400">current only</span>
-                      )}
-                    </td>
-                  </tr>
+                    c={c}
+                    selectedIdx={palIdx}
+                    onToggle={toggle}
+                  />
                 );
               })}
               {filtered.length === 0 && (
@@ -398,22 +331,12 @@ export default function Dashboard({
       {/* Footer */}
       <footer className="mt-8 flex flex-wrap items-center justify-between gap-3 text-xs text-neutral-500">
         <div>
-          Historical data:{" "}
-          <a
-            href={coverage.sources.historical.url}
-            target="_blank"
-            rel="noreferrer"
-            className="underline-offset-2 hover:underline"
-          >
-            BIS Central Bank Policy Rates
+          Historical:{" "}
+          <a className="underline-offset-2 hover:underline" href={coverage.sources.historical.url} target="_blank" rel="noreferrer">
+            BIS CBPOL
           </a>{" "}
-          · Current snapshot:{" "}
-          <a
-            href={coverage.sources.current.url}
-            target="_blank"
-            rel="noreferrer"
-            className="underline-offset-2 hover:underline"
-          >
+          · Current:{" "}
+          <a className="underline-offset-2 hover:underline" href={coverage.sources.current.url} target="_blank" rel="noreferrer">
             Wikipedia
           </a>{" "}
           ({coverage.sources.current.snapshotDate})
@@ -422,71 +345,12 @@ export default function Dashboard({
       </footer>
 
       {/* Coverage drawer */}
-      {showCoverage && (
-        <div
-          className="fixed inset-0 z-40 flex items-end justify-end bg-black/30 backdrop-blur-sm sm:items-center"
-          onClick={() => setShowCoverage(false)}
-        >
-          <div
-            onClick={(e) => e.stopPropagation()}
-            className="glass max-h-[88vh] w-full overflow-y-auto rounded-t-3xl p-6 sm:m-6 sm:max-w-2xl sm:rounded-3xl"
-          >
-            <div className="mb-4 flex items-center justify-between">
-              <h2 className="text-lg font-semibold tracking-tight">Data sources & coverage</h2>
-              <button onClick={() => setShowCoverage(false)} className="opacity-60 hover:opacity-100">
-                <X size={18} />
-              </button>
-            </div>
-            <div className="space-y-5 text-sm">
-              <Section title="Historical (BIS CBPOL)">
-                <p>
-                  <a className="underline" href={coverage.sources.historical.url} target="_blank" rel="noreferrer">
-                    {coverage.sources.historical.name}
-                  </a>{" "}
-                  · {coverage.sources.historical.frequency}.
-                </p>
-                <p className="mt-1 text-neutral-500">
-                  {coverage.totals.withHistorySeries} countries with monthly history. Earliest series start
-                  in 1945; series may break or be discontinued (e.g. legacy euro-area members merged into the
-                  Eurozone aggregate from 1999).
-                </p>
-              </Section>
-              <Section title="Current rates (Wikipedia snapshot)">
-                <p>
-                  <a className="underline" href={coverage.sources.current.url} target="_blank" rel="noreferrer">
-                    {coverage.sources.current.name}
-                  </a>{" "}
-                  · snapshot {coverage.sources.current.snapshotDate}.
-                </p>
-                <p className="mt-1 text-neutral-500">
-                  {coverage.totals.currentOnly} countries appear only here (no BIS history).
-                </p>
-              </Section>
-              <Section title="Current-only countries (no historical series yet)">
-                <div className="grid grid-cols-2 gap-1 text-xs text-neutral-600 dark:text-neutral-300 sm:grid-cols-3">
-                  {coverage.currentOnly.map((c) => (
-                    <div key={c.iso2} className="flex items-center gap-1.5">
-                      <span className="font-medium">{c.name}</span>
-                      <span className="ml-auto tnum text-neutral-400">{c.rate.toFixed(2)}%</span>
-                    </div>
-                  ))}
-                </div>
-              </Section>
-              {coverage.unknownBisReferenceAreas.length > 0 && (
-                <Section title="Unmapped BIS reference areas">
-                  <p className="text-xs text-neutral-500">
-                    Reference areas in BIS data we don&apos;t surface (likely aggregates):{" "}
-                    {coverage.unknownBisReferenceAreas.join(", ") || "none"}
-                  </p>
-                </Section>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
+      {showCoverage && <CoverageDrawer coverage={coverage} onClose={() => setShowCoverage(false)} />}
     </main>
   );
 }
+
+/* --- helpers --- */
 
 function Stat({
   icon,
@@ -518,26 +382,176 @@ function Stat({
   );
 }
 
-function SortBtn({
-  active,
-  onClick,
-  children,
+type SegmentOpt<T> = T | { value: T; label: React.ReactNode };
+
+function Segment<T extends string>({
+  value,
+  onChange,
+  options,
 }: {
-  active: boolean;
-  onClick: () => void;
-  children: React.ReactNode;
+  value: T;
+  onChange: (v: T) => void;
+  options: readonly SegmentOpt<T>[];
 }) {
   return (
-    <button
-      onClick={onClick}
-      className={`inline-flex items-center rounded-full px-2.5 py-1 transition ${
-        active
-          ? "bg-white text-neutral-900 shadow-sm dark:bg-neutral-100/95"
-          : "text-neutral-500 hover:text-neutral-900 dark:hover:text-neutral-100"
+    <div className="segment">
+      {options.map((opt) => {
+        const v = (typeof opt === "object" ? opt.value : opt) as T;
+        const label = typeof opt === "object" ? opt.label : opt;
+        const active = v === value;
+        return (
+          <button
+            key={v}
+            onClick={() => onChange(v)}
+            className={`chip ${active ? "chip-active" : ""} inline-flex items-center`}
+          >
+            {label}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+const SelectedPill = memo(function SelectedPill({
+  color,
+  country,
+  onRemove,
+}: {
+  color: string;
+  country: CountrySummary;
+  onRemove: (iso: string) => void;
+}) {
+  return (
+    <span
+      className="inline-flex items-center gap-1.5 rounded-full bg-white/70 px-2.5 py-1 text-xs ring-1 ring-black/5 dark:bg-white/[0.08] dark:ring-white/10"
+      title={country.name}
+    >
+      <span className="h-2 w-2 rounded-full" style={{ background: color }} />
+      <Flag code={country.flagCode} alt={country.name} size={14} />
+      <span className="font-medium">{country.name}</span>
+      <button
+        type="button"
+        onClick={() => onRemove(country.iso2)}
+        className="ml-0.5 grid h-4 w-4 place-items-center rounded-full text-neutral-500 hover:bg-black/[0.08] hover:text-neutral-900 dark:hover:bg-white/10 dark:hover:text-white"
+        aria-label={`Remove ${country.name}`}
+      >
+        <X size={11} />
+      </button>
+    </span>
+  );
+});
+
+const CountryRow = memo(function CountryRow({
+  c,
+  selectedIdx,
+  onToggle,
+}: {
+  c: CountrySummary;
+  selectedIdx: number;
+  onToggle: (iso: string) => void;
+}) {
+  const isSel = selectedIdx >= 0;
+  const color = isSel ? PALETTE[selectedIdx % PALETTE.length] : null;
+  return (
+    <tr
+      onClick={() => onToggle(c.iso2)}
+      className={`group cursor-pointer border-t border-black/[0.04] transition-colors dark:border-white/[0.05] ${
+        isSel
+          ? "bg-blue-500/[0.07] dark:bg-blue-400/[0.10]"
+          : "hover:bg-black/[0.03] dark:hover:bg-white/[0.04]"
       }`}
     >
-      {children}
-    </button>
+      <td className="px-3 py-2">
+        {color ? (
+          <span className="block h-2.5 w-2.5 rounded-full" style={{ background: color }} />
+        ) : (
+          <span className="block h-2.5 w-2.5 rounded-full ring-1 ring-black/15 dark:ring-white/20" />
+        )}
+      </td>
+      <td className="px-3 py-2">
+        <div className="flex items-center gap-2">
+          <Flag code={c.flagCode} alt={c.name} size={18} />
+          <span className="font-medium">{c.name}</span>
+          <span className="text-[11px] text-neutral-400">{c.iso2}</span>
+        </div>
+      </td>
+      <td className="px-3 py-2 text-neutral-500">{c.continent}</td>
+      <td className="px-3 py-2 text-right font-semibold">{fmtPct(c.rate)}</td>
+      <td className="px-3 py-2 text-neutral-500">{fmtDate(c.rateDate)}</td>
+      <td className="px-3 py-2 text-neutral-500">
+        {c.hasHistory ? (
+          <span>
+            {c.historyStart?.slice(0, 4)}–{c.historyEnd?.slice(0, 4)}{" "}
+            <span className="text-neutral-400">({c.historyCount} obs)</span>
+          </span>
+        ) : (
+          <span className="text-neutral-400">current only</span>
+        )}
+      </td>
+    </tr>
+  );
+});
+
+function CoverageDrawer({ coverage, onClose }: { coverage: Coverage; onClose: () => void }) {
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [onClose]);
+
+  return (
+    <div
+      className="fixed inset-0 z-40 flex items-end justify-end bg-black/35 backdrop-blur-[2px] sm:items-center"
+      onClick={onClose}
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        className="glass max-h-[88vh] w-full overflow-y-auto rounded-t-3xl p-6 sm:m-6 sm:max-w-2xl sm:rounded-3xl"
+      >
+        <div className="mb-4 flex items-center justify-between">
+          <h2 className="text-lg font-semibold tracking-tight">Data sources & coverage</h2>
+          <button onClick={onClose} className="opacity-60 hover:opacity-100" aria-label="Close">
+            <X size={18} />
+          </button>
+        </div>
+        <div className="space-y-5 text-sm">
+          <Section title="Historical (BIS CBPOL)">
+            <p>
+              <a className="underline" href={coverage.sources.historical.url} target="_blank" rel="noreferrer">
+                {coverage.sources.historical.name}
+              </a>{" "}
+              · {coverage.sources.historical.frequency}.
+            </p>
+            <p className="mt-1 text-neutral-500">
+              {coverage.totals.withHistorySeries} countries with monthly history. Earliest series start in
+              1945; legacy euro-area members fold into the Eurozone aggregate from 1999.
+            </p>
+          </Section>
+          <Section title="Current rates (Wikipedia snapshot)">
+            <p>
+              <a className="underline" href={coverage.sources.current.url} target="_blank" rel="noreferrer">
+                {coverage.sources.current.name}
+              </a>{" "}
+              · snapshot {coverage.sources.current.snapshotDate}.
+            </p>
+            <p className="mt-1 text-neutral-500">
+              {coverage.totals.currentOnly} countries appear only here (no BIS history).
+            </p>
+          </Section>
+          <Section title="Current-only countries (no historical series yet)">
+            <div className="grid grid-cols-2 gap-1 text-xs text-neutral-600 dark:text-neutral-300 sm:grid-cols-3">
+              {coverage.currentOnly.map((c) => (
+                <div key={c.iso2} className="flex items-center gap-1.5">
+                  <span className="font-medium">{c.name}</span>
+                  <span className="ml-auto tnum text-neutral-400">{c.rate.toFixed(2)}%</span>
+                </div>
+              ))}
+            </div>
+          </Section>
+        </div>
+      </div>
+    </div>
   );
 }
 
