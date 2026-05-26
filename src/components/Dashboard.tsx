@@ -47,7 +47,7 @@ const PALETTE = [
 ];
 
 const RANGES: ChartRange[] = ["5Y", "10Y", "20Y", "50Y", "MAX"];
-const MAX_SELECTION = 12;
+const PILL_LIMIT = 12; // pills shown inline before collapsing into "+N more"
 
 function fmtPct(v: number | null | undefined) {
   return v == null ? "—" : `${v.toFixed(2)}%`;
@@ -79,6 +79,10 @@ export default function Dashboard({ index, coverage, preloadedSeries, defaultSel
   const [scale, setScale] = useState<ChartScale>("linear");
   const [showCoverage, setShowCoverage] = useState(false);
   const [onlyHistory, setOnlyHistory] = useState(false);
+  // Focus: hovered overrides pinned. Either dims all non-matching lines on the chart.
+  const [hoveredIso, setHoveredIso] = useState<string | null>(null);
+  const [pinnedIso, setPinnedIso] = useState<string | null>(null);
+  const focusedIso = hoveredIso ?? pinnedIso;
 
   // Batched fetch — one Promise.all per "selected" change, one setState when ready.
   const inflight = useRef<Set<string>>(new Set());
@@ -113,16 +117,24 @@ export default function Dashboard({ index, coverage, preloadedSeries, defaultSel
   }, [selected, cache]);
 
   const toggle = useCallback((iso: string) => {
-    setSelected((sel) => {
-      if (sel.includes(iso)) return sel.filter((x) => x !== iso);
-      if (sel.length >= MAX_SELECTION) return sel;
-      return [...sel, iso];
-    });
+    setSelected((sel) => (sel.includes(iso) ? sel.filter((x) => x !== iso) : [...sel, iso]));
   }, []);
   const remove = useCallback((iso: string) => {
     setSelected((sel) => sel.filter((x) => x !== iso));
+    setPinnedIso((p) => (p === iso ? null : p));
+    setHoveredIso((h) => (h === iso ? null : h));
   }, []);
-  const clearSelection = useCallback(() => setSelected([]), []);
+  const clearSelection = useCallback(() => {
+    setSelected([]);
+    setPinnedIso(null);
+    setHoveredIso(null);
+  }, []);
+  const togglePin = useCallback((iso: string) => {
+    setPinnedIso((p) => (p === iso ? null : iso));
+  }, []);
+  const selectAll = useCallback(() => {
+    setSelected(index.map((c) => c.iso2));
+  }, [index]);
 
   const pickTop = useCallback(
     (kind: "highest" | "lowest") => {
@@ -220,7 +232,6 @@ export default function Dashboard({ index, coverage, preloadedSeries, defaultSel
       }
       const merged = [...sel];
       for (const iso of visible) {
-        if (merged.length >= MAX_SELECTION) break;
         if (!merged.includes(iso)) merged.push(iso);
       }
       return merged;
@@ -269,16 +280,19 @@ export default function Dashboard({ index, coverage, preloadedSeries, defaultSel
               <span className="text-xs text-neutral-400">no countries selected</span>
             ) : (
               <>
-                {selectedRows.slice(0, 12).map((c, i) => (
+                {selectedRows.slice(0, PILL_LIMIT).map((c, i) => (
                   <SelectedPill
                     key={c.iso2}
                     color={PALETTE[i % PALETTE.length]}
                     country={c}
+                    pinned={pinnedIso === c.iso2}
                     onRemove={remove}
+                    onHover={setHoveredIso}
+                    onPinToggle={togglePin}
                   />
                 ))}
-                {selectedRows.length > 12 && (
-                  <span className="text-xs text-neutral-500">+{selectedRows.length - 12}</span>
+                {selectedRows.length > PILL_LIMIT && (
+                  <span className="text-xs text-neutral-500">+{selectedRows.length - PILL_LIMIT} more</span>
                 )}
                 {loadingCount > 0 && (
                   <span className="text-[11px] text-neutral-500">loading {loadingCount}…</span>
@@ -305,8 +319,14 @@ export default function Dashboard({ index, coverage, preloadedSeries, defaultSel
           </div>
         </div>
         <div className="h-[360px] sm:h-[440px]">
-          <Chart series={chartSeries} range={range} scale={scale} />
+          <Chart series={chartSeries} range={range} scale={scale} focusedIso={focusedIso} />
         </div>
+        {selectedRows.length > 1 && (
+          <p className="mt-2 text-[11px] text-neutral-500 dark:text-neutral-400">
+            Hover a pill to highlight one line · click a pill to pin it
+            {pinnedIso ? <> · <button onClick={() => setPinnedIso(null)} className="underline-offset-2 hover:underline">unpin</button></> : null}
+          </p>
+        )}
       </section>
 
       {/* Filters + table */}
@@ -371,19 +391,34 @@ export default function Dashboard({ index, coverage, preloadedSeries, defaultSel
               </span>
               <span className="opacity-50">·</span>
               <span>
-                <span className="font-medium text-neutral-700 dark:text-neutral-200">
-                  {selected.length}
-                </span>{" "}
-                / {MAX_SELECTION} selected
+                <span className="font-medium text-neutral-700 dark:text-neutral-200">{selected.length}</span>{" "}
+                selected
               </span>
             </div>
-            <button
-              onClick={toggleVisible}
-              disabled={visibleIsos.length === 0}
-              className="chip inline-flex items-center gap-1.5 disabled:cursor-not-allowed disabled:opacity-40"
-            >
-              <Check size={11} /> {allVisibleSelected ? "Deselect visible" : "Select visible"}
-            </button>
+            <div className="flex flex-wrap items-center gap-2">
+              <button
+                onClick={toggleVisible}
+                disabled={visibleIsos.length === 0}
+                className="chip inline-flex items-center gap-1.5 disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                <Check size={11} /> {allVisibleSelected ? "Deselect visible" : "Select visible"}
+              </button>
+              <button
+                onClick={selectAll}
+                disabled={selected.length === stats.total}
+                className="chip inline-flex items-center gap-1.5 disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                <Check size={11} /> Select all
+              </button>
+              {selected.length > 0 && (
+                <button
+                  onClick={clearSelection}
+                  className="chip inline-flex items-center gap-1.5"
+                >
+                  <X size={11} /> Clear
+                </button>
+              )}
+            </div>
           </div>
         </div>
 
@@ -403,13 +438,11 @@ export default function Dashboard({ index, coverage, preloadedSeries, defaultSel
             <tbody>
               {filtered.map((c) => {
                 const palIdx = selected.indexOf(c.iso2);
-                const disabled = palIdx < 0 && selected.length >= MAX_SELECTION;
                 return (
                   <CountryRow
                     key={c.iso2}
                     c={c}
                     selectedIdx={palIdx}
-                    disabled={disabled}
                     onToggle={toggle}
                   />
                 );
@@ -517,54 +550,71 @@ function Segment<T extends string>({
 const SelectedPill = memo(function SelectedPill({
   color,
   country,
+  pinned,
   onRemove,
+  onHover,
+  onPinToggle,
 }: {
   color: string;
   country: CountrySummary;
+  pinned: boolean;
   onRemove: (iso: string) => void;
+  onHover: (iso: string | null) => void;
+  onPinToggle: (iso: string) => void;
 }) {
   return (
-    <span
-      className="inline-flex items-center gap-1.5 rounded-full bg-white/70 px-2.5 py-1 text-xs ring-1 ring-black/5 dark:bg-white/[0.08] dark:ring-white/10"
-      title={country.name}
+    <button
+      type="button"
+      onMouseEnter={() => onHover(country.iso2)}
+      onMouseLeave={() => onHover(null)}
+      onFocus={() => onHover(country.iso2)}
+      onBlur={() => onHover(null)}
+      onClick={() => onPinToggle(country.iso2)}
+      className={`inline-flex items-center gap-1.5 rounded-full bg-white/70 px-2.5 py-1 text-xs ring-1 transition-shadow dark:bg-white/[0.08] ${
+        pinned
+          ? "ring-2 ring-offset-1 ring-offset-transparent"
+          : "ring-black/5 hover:ring-black/15 dark:ring-white/10 dark:hover:ring-white/25"
+      }`}
+      style={pinned ? ({ ["--tw-ring-color" as string]: color } as React.CSSProperties) : undefined}
+      title={pinned ? `${country.name} (pinned — click to unpin)` : `${country.name} (click to pin)`}
+      aria-pressed={pinned}
     >
       <span className="h-2 w-2 rounded-full" style={{ background: color }} />
       <span className="font-medium">{country.name}</span>
-      <button
-        type="button"
-        onClick={() => onRemove(country.iso2)}
+      <span
+        role="button"
+        tabIndex={-1}
+        onClick={(e) => {
+          e.stopPropagation();
+          onRemove(country.iso2);
+        }}
         className="ml-0.5 grid h-4 w-4 place-items-center rounded-full text-neutral-500 hover:bg-black/[0.08] hover:text-neutral-900 dark:hover:bg-white/10 dark:hover:text-white"
         aria-label={`Remove ${country.name}`}
       >
         <X size={11} />
-      </button>
-    </span>
+      </span>
+    </button>
   );
 });
 
 const CountryRow = memo(function CountryRow({
   c,
   selectedIdx,
-  disabled,
   onToggle,
 }: {
   c: CountrySummary;
   selectedIdx: number;
-  disabled: boolean;
   onToggle: (iso: string) => void;
 }) {
   const isSel = selectedIdx >= 0;
   const color = isSel ? PALETTE[selectedIdx % PALETTE.length] : null;
   return (
     <tr
-      onClick={() => !disabled && onToggle(c.iso2)}
-      aria-disabled={disabled}
-      className={`group border-t border-black/[0.04] transition-colors dark:border-white/[0.05] ${
+      onClick={() => onToggle(c.iso2)}
+      className={`group cursor-pointer border-t border-black/[0.04] transition-colors dark:border-white/[0.05] ${
         isSel
-          ? "cursor-pointer bg-blue-500/[0.08] dark:bg-blue-400/[0.10]"
-          : disabled
-          ? "cursor-not-allowed opacity-50"
-          : "cursor-pointer hover:bg-black/[0.03] dark:hover:bg-white/[0.04]"
+          ? "bg-blue-500/[0.08] dark:bg-blue-400/[0.10]"
+          : "hover:bg-black/[0.03] dark:hover:bg-white/[0.04]"
       }`}
     >
       <td className="px-3 py-2">

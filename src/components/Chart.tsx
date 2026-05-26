@@ -47,11 +47,20 @@ function Chart({
   series,
   range,
   scale = "linear",
+  focusedIso = null,
 }: {
   series: Series[];
   range: ChartRange;
   scale?: ChartScale;
+  focusedIso?: string | null;
 }) {
+  // Render focused last so it paints on top.
+  const ordered = useMemo(() => {
+    if (!focusedIso) return series;
+    const front = series.filter((s) => s.meta.iso2 !== focusedIso);
+    const back = series.filter((s) => s.meta.iso2 === focusedIso);
+    return [...front, ...back];
+  }, [series, focusedIso]);
   const { rows } = useMemo(() => {
     if (!series.length) return { rows: [] as Record<string, number | string>[] };
     const floor = rangeFloor(range);
@@ -123,20 +132,25 @@ function Chart({
           formatter={(v: number, name: string) => [v == null ? "—" : `${v.toFixed(2)}%`, name]}
           labelFormatter={(d: string) => fmtMonth(d)}
         />
-        {series.map((s) => (
-          <Line
-            key={s.meta.iso2}
-            type="monotone"
-            dataKey={s.meta.iso2}
-            name={s.meta.name}
-            stroke={s.meta.color}
-            strokeWidth={1.75}
-            dot={false}
-            activeDot={{ r: 3.5, strokeWidth: 0 }}
-            connectNulls
-            isAnimationActive={false}
-          />
-        ))}
+        {ordered.map((s) => {
+          const isFocused = focusedIso === s.meta.iso2;
+          const dimmed = focusedIso != null && !isFocused;
+          return (
+            <Line
+              key={s.meta.iso2}
+              type="monotone"
+              dataKey={s.meta.iso2}
+              name={s.meta.name}
+              stroke={dimmed ? "currentColor" : s.meta.color}
+              strokeOpacity={dimmed ? 0.18 : 1}
+              strokeWidth={isFocused ? 2.5 : dimmed ? 1.25 : 1.75}
+              dot={false}
+              activeDot={dimmed ? false : { r: 3.5, strokeWidth: 0 }}
+              connectNulls
+              isAnimationActive={false}
+            />
+          );
+        })}
       </LineChart>
     </ResponsiveContainer>
   );
