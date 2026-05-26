@@ -264,13 +264,22 @@ export default function Dashboard({ index, coverage, preloadedSeries, defaultSel
             {stats.withHistory} countries with monthly history back to 1945 (BIS CBPOL); {stats.withRate - stats.withHistory} more with a current-rate snapshot only. Click any chartable row to overlay it.
           </p>
         </div>
-        <Link
-          href="/sources"
-          prefetch
-          className="glass inline-flex shrink-0 items-center gap-2 rounded-full px-3.5 py-2 text-xs font-medium hover:opacity-90"
-        >
-          <Info size={14} /> Sources
-        </Link>
+        <div className="flex shrink-0 items-center gap-2">
+          <Link
+            href="/grid"
+            prefetch
+            className="glass inline-flex items-center gap-2 rounded-full px-3.5 py-2 text-xs font-medium hover:opacity-90"
+          >
+            <LineChartIcon size={14} /> All countries
+          </Link>
+          <Link
+            href="/sources"
+            prefetch
+            className="glass inline-flex items-center gap-2 rounded-full px-3.5 py-2 text-xs font-medium hover:opacity-90"
+          >
+            <Info size={14} /> Sources
+          </Link>
+        </div>
       </header>
 
       {/* Stats */}
