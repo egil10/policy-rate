@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import {
   memo,
   useCallback,
@@ -77,7 +78,6 @@ export default function Dashboard({ index, coverage, preloadedSeries, defaultSel
   const [cache, setCache] = useState<Record<string, CountryFile>>(preloadedSeries);
   const [range, setRange] = useState<ChartRange>("20Y");
   const [scale, setScale] = useState<ChartScale>("linear");
-  const [showCoverage, setShowCoverage] = useState(false);
   const [onlyHistory, setOnlyHistory] = useState(false);
   // Focus: hovered overrides pinned. Either dims all non-matching lines on the chart.
   const [hoveredIso, setHoveredIso] = useState<string | null>(null);
@@ -141,9 +141,6 @@ export default function Dashboard({ index, coverage, preloadedSeries, defaultSel
   const togglePin = useCallback((iso: string) => {
     setPinnedIso((p) => (p === iso ? null : iso));
   }, []);
-  const selectAll = useCallback(() => {
-    setSelected(index.filter((c) => c.hasHistory).map((c) => c.iso2));
-  }, [index]);
 
   const pickTop = useCallback(
     (kind: "highest" | "lowest") => {
@@ -267,12 +264,13 @@ export default function Dashboard({ index, coverage, preloadedSeries, defaultSel
             {stats.withHistory} countries with monthly history back to 1945 (BIS CBPOL); {stats.withRate - stats.withHistory} more with a current-rate snapshot only. Click any chartable row to overlay it.
           </p>
         </div>
-        <button
-          onClick={() => setShowCoverage(true)}
+        <Link
+          href="/sources"
+          prefetch
           className="glass inline-flex shrink-0 items-center gap-2 rounded-full px-3.5 py-2 text-xs font-medium hover:opacity-90"
         >
           <Info size={14} /> Sources
-        </button>
+        </Link>
       </header>
 
       {/* Stats */}
@@ -414,20 +412,16 @@ export default function Dashboard({ index, coverage, preloadedSeries, defaultSel
                 onClick={toggleVisible}
                 disabled={visibleChartable.length === 0}
                 className="chip inline-flex items-center gap-1.5 disabled:cursor-not-allowed disabled:opacity-40"
-                title="Select all chartable rows currently in view"
+                title={
+                  filtersActive
+                    ? "Select all chartable rows matching the current filter"
+                    : "Select every chartable country"
+                }
               >
                 <Check size={11} />{" "}
                 {visibleChartable.length > 0 && visibleChartable.every((iso) => selected.includes(iso))
-                  ? "Deselect visible"
-                  : "Select visible"}
-              </button>
-              <button
-                onClick={selectAll}
-                disabled={selected.length === stats.withHistory}
-                className="chip inline-flex items-center gap-1.5 disabled:cursor-not-allowed disabled:opacity-40"
-                title="Select every country with monthly history"
-              >
-                <Check size={11} /> Select all ({stats.withHistory})
+                  ? `Deselect ${filtersActive ? "filter" : "all"} (${visibleChartable.length})`
+                  : `Select ${filtersActive ? "filter" : "all"} (${visibleChartable.length})`}
               </button>
               {selected.length > 0 && (
                 <button
@@ -492,13 +486,14 @@ export default function Dashboard({ index, coverage, preloadedSeries, defaultSel
           <a className="underline-offset-2 hover:underline" href={coverage.sources.current.url} target="_blank" rel="noreferrer">
             Wikipedia
           </a>{" "}
-          ({coverage.sources.current.snapshotDate})
+          ({coverage.sources.current.snapshotDate}) ·{" "}
+          <Link href="/sources" prefetch className="underline-offset-2 hover:underline">
+            full coverage
+          </Link>
         </div>
         <div>Generated {fmtDate(coverage.generatedAt.slice(0, 10))}</div>
       </footer>
 
-      {/* Coverage drawer */}
-      {showCoverage && <CoverageDrawer coverage={coverage} onClose={() => setShowCoverage(false)} />}
     </main>
   );
 }
@@ -690,86 +685,3 @@ const CountryRow = memo(function CountryRow({
   );
 });
 
-function CoverageDrawer({ coverage, onClose }: { coverage: Coverage; onClose: () => void }) {
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
-    document.addEventListener("keydown", onKey);
-    return () => document.removeEventListener("keydown", onKey);
-  }, [onClose]);
-
-  return (
-    <div
-      className="fixed inset-0 z-40 flex items-end justify-end bg-black/35 backdrop-blur-[2px] sm:items-center"
-      onClick={onClose}
-    >
-      <div
-        onClick={(e) => e.stopPropagation()}
-        className="glass max-h-[88vh] w-full overflow-y-auto rounded-t-3xl p-6 sm:m-6 sm:max-w-2xl sm:rounded-3xl"
-      >
-        <div className="mb-4 flex items-center justify-between">
-          <h2 className="text-lg font-semibold tracking-tight">Data sources & coverage</h2>
-          <button onClick={onClose} className="opacity-60 hover:opacity-100" aria-label="Close">
-            <X size={18} />
-          </button>
-        </div>
-        <div className="space-y-5 text-sm">
-          <Section title="Historical (BIS CBPOL)">
-            <p>
-              <a className="underline" href={coverage.sources.historical.url} target="_blank" rel="noreferrer">
-                {coverage.sources.historical.name}
-              </a>{" "}
-              · {coverage.sources.historical.frequency}.
-            </p>
-            <p className="mt-1 text-neutral-500">
-              {coverage.totals.withHistorySeries} countries with monthly history. Earliest series start in
-              1945; legacy euro-area members fold into the Eurozone aggregate from 1999.
-            </p>
-          </Section>
-          <Section title="Current rates (Wikipedia snapshot)">
-            <p>
-              <a className="underline" href={coverage.sources.current.url} target="_blank" rel="noreferrer">
-                {coverage.sources.current.name}
-              </a>{" "}
-              · snapshot {coverage.sources.current.snapshotDate}.
-            </p>
-            <p className="mt-1 text-neutral-500">
-              {coverage.totals.currentOnly} countries appear only here (no BIS history). They are marked
-              <span className="mx-1 rounded-full bg-black/[0.05] px-1.5 py-0.5 text-[10px] uppercase tracking-wider dark:bg-white/[0.06]">snapshot</span>
-              in the table and aren't chartable.
-            </p>
-          </Section>
-          <Section title="Why coverage stops at ~50 countries">
-            <p className="text-neutral-500">
-              BIS CBPOL is the canonical aggregate for monthly central-bank policy rates and already
-              harvests data from every central bank that publishes consistent monthly series. Extending
-              beyond it requires hand-rolled scrapers per country — many publish only rate-change
-              announcements (not monthly snapshots), use PDFs, or bot-defend their sites. The IMF's
-              SDMX API that used to bridge the gap was retired in 2024.
-            </p>
-          </Section>
-          <Section title="Current-only countries (no historical series yet)">
-            <div className="grid grid-cols-2 gap-1 text-xs text-neutral-600 dark:text-neutral-300 sm:grid-cols-3">
-              {coverage.currentOnly.map((c) => (
-                <div key={c.iso2} className="flex items-center gap-1.5">
-                  <span className="font-medium">{c.name}</span>
-                  <span className="ml-auto tnum text-neutral-400">{c.rate.toFixed(2)}%</span>
-                </div>
-              ))}
-            </div>
-          </Section>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function Section({ title, children }: { title: string; children: React.ReactNode }) {
-  return (
-    <div>
-      <div className="mb-1 text-xs uppercase tracking-[0.18em] text-neutral-500 dark:text-neutral-400">
-        {title}
-      </div>
-      <div>{children}</div>
-    </div>
-  );
-}
