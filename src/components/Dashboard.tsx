@@ -116,9 +116,18 @@ export default function Dashboard({ index, coverage, preloadedSeries, defaultSel
     };
   }, [selected, cache]);
 
-  const toggle = useCallback((iso: string) => {
-    setSelected((sel) => (sel.includes(iso) ? sel.filter((x) => x !== iso) : [...sel, iso]));
-  }, []);
+  const chartableIsos = useMemo(
+    () => new Set(index.filter((c) => c.hasHistory).map((c) => c.iso2)),
+    [index],
+  );
+
+  const toggle = useCallback(
+    (iso: string) => {
+      if (!chartableIsos.has(iso)) return; // snapshot-only countries can't be charted
+      setSelected((sel) => (sel.includes(iso) ? sel.filter((x) => x !== iso) : [...sel, iso]));
+    },
+    [chartableIsos],
+  );
   const remove = useCallback((iso: string) => {
     setSelected((sel) => sel.filter((x) => x !== iso));
     setPinnedIso((p) => (p === iso ? null : p));
@@ -133,12 +142,15 @@ export default function Dashboard({ index, coverage, preloadedSeries, defaultSel
     setPinnedIso((p) => (p === iso ? null : iso));
   }, []);
   const selectAll = useCallback(() => {
-    setSelected(index.map((c) => c.iso2));
+    setSelected(index.filter((c) => c.hasHistory).map((c) => c.iso2));
   }, [index]);
 
   const pickTop = useCallback(
     (kind: "highest" | "lowest") => {
-      const withRate = index.filter((c) => c.rate != null) as (CountrySummary & { rate: number })[];
+      // Only consider chartable countries — others would just be empty pills.
+      const withRate = index.filter(
+        (c) => c.rate != null && c.hasHistory,
+      ) as (CountrySummary & { rate: number })[];
       const sorted = withRate.slice().sort((a, b) => (kind === "highest" ? b.rate - a.rate : a.rate - b.rate));
       setSelected(sorted.slice(0, 8).map((c) => c.iso2));
     },
@@ -220,11 +232,14 @@ export default function Dashboard({ index, coverage, preloadedSeries, defaultSel
   // "Select visible" toggles all currently-filtered rows that aren't already selected,
   // up to MAX_SELECTION. If everything visible is already selected, it deselects them.
   const visibleIsos = useMemo(() => filtered.map((c) => c.iso2), [filtered]);
-  const allVisibleSelected =
-    visibleIsos.length > 0 && visibleIsos.every((iso) => selected.includes(iso));
+  // Only chartable rows count for "select visible" — otherwise the pill is a no-op.
+  const visibleChartable = useMemo(
+    () => visibleIsos.filter((iso) => chartableIsos.has(iso)),
+    [visibleIsos, chartableIsos],
+  );
   const toggleVisible = useCallback(() => {
     setSelected((sel) => {
-      const visible = visibleIsos;
+      const visible = visibleChartable;
       const allOn = visible.length > 0 && visible.every((iso) => sel.includes(iso));
       if (allOn) {
         const visSet = new Set(visible);
@@ -236,7 +251,7 @@ export default function Dashboard({ index, coverage, preloadedSeries, defaultSel
       }
       return merged;
     });
-  }, [visibleIsos]);
+  }, [visibleChartable]);
 
   return (
     <main className="mx-auto w-full max-w-[1440px] px-4 py-8 sm:px-8 sm:py-12">
@@ -249,8 +264,7 @@ export default function Dashboard({ index, coverage, preloadedSeries, defaultSel
           </div>
           <h1 className="mt-2 text-3xl font-semibold tracking-tight sm:text-4xl">Policy Rate</h1>
           <p className="mt-1 max-w-2xl text-sm text-neutral-600 dark:text-neutral-400">
-            Monthly history since 1945 from BIS, current snapshot for {stats.withRate} countries. Click any
-            country to overlay it on the chart.
+            {stats.withHistory} countries with monthly history back to 1945 (BIS CBPOL); {stats.withRate - stats.withHistory} more with a current-rate snapshot only. Click any chartable row to overlay it.
           </p>
         </div>
         <button
@@ -398,17 +412,22 @@ export default function Dashboard({ index, coverage, preloadedSeries, defaultSel
             <div className="flex flex-wrap items-center gap-2">
               <button
                 onClick={toggleVisible}
-                disabled={visibleIsos.length === 0}
+                disabled={visibleChartable.length === 0}
                 className="chip inline-flex items-center gap-1.5 disabled:cursor-not-allowed disabled:opacity-40"
+                title="Select all chartable rows currently in view"
               >
-                <Check size={11} /> {allVisibleSelected ? "Deselect visible" : "Select visible"}
+                <Check size={11} />{" "}
+                {visibleChartable.length > 0 && visibleChartable.every((iso) => selected.includes(iso))
+                  ? "Deselect visible"
+                  : "Select visible"}
               </button>
               <button
                 onClick={selectAll}
-                disabled={selected.length === stats.total}
+                disabled={selected.length === stats.withHistory}
                 className="chip inline-flex items-center gap-1.5 disabled:cursor-not-allowed disabled:opacity-40"
+                title="Select every country with monthly history"
               >
-                <Check size={11} /> Select all
+                <Check size={11} /> Select all ({stats.withHistory})
               </button>
               {selected.length > 0 && (
                 <button
@@ -608,46 +627,63 @@ const CountryRow = memo(function CountryRow({
 }) {
   const isSel = selectedIdx >= 0;
   const color = isSel ? PALETTE[selectedIdx % PALETTE.length] : null;
+  const charted = c.hasHistory;
   return (
     <tr
-      onClick={() => onToggle(c.iso2)}
-      className={`group cursor-pointer border-t border-black/[0.04] transition-colors dark:border-white/[0.05] ${
+      onClick={charted ? () => onToggle(c.iso2) : undefined}
+      title={charted ? undefined : "Snapshot only — no historical series available to chart"}
+      aria-disabled={!charted}
+      className={`group border-t border-black/[0.04] transition-colors dark:border-white/[0.05] ${
         isSel
-          ? "bg-blue-500/[0.08] dark:bg-blue-400/[0.10]"
-          : "hover:bg-black/[0.03] dark:hover:bg-white/[0.04]"
+          ? "cursor-pointer bg-blue-500/[0.08] dark:bg-blue-400/[0.10]"
+          : charted
+          ? "cursor-pointer hover:bg-black/[0.03] dark:hover:bg-white/[0.04]"
+          : "cursor-default opacity-60"
       }`}
     >
       <td className="px-3 py-2">
-        <span
-          className={`grid h-4 w-4 place-items-center rounded-[4px] border transition-colors ${
-            isSel
-              ? "border-transparent"
-              : "border-black/15 group-hover:border-black/35 dark:border-white/20 dark:group-hover:border-white/45"
-          }`}
-          style={color ? { background: color, borderColor: color } : undefined}
-          aria-hidden
-        >
-          {isSel && <Check size={11} className="text-white" />}
-        </span>
+        {charted ? (
+          <span
+            className={`grid h-4 w-4 place-items-center rounded-[4px] border transition-colors ${
+              isSel
+                ? "border-transparent"
+                : "border-black/15 group-hover:border-black/35 dark:border-white/20 dark:group-hover:border-white/45"
+            }`}
+            style={color ? { background: color, borderColor: color } : undefined}
+            aria-hidden
+          >
+            {isSel && <Check size={11} className="text-white" />}
+          </span>
+        ) : (
+          <span
+            className="block h-4 w-4 rounded-[4px] border border-dashed border-black/15 dark:border-white/15"
+            aria-hidden
+          />
+        )}
       </td>
       <td className="px-3 py-2">
         <div className="flex items-center gap-2">
           <Flag code={c.flagCode} alt={c.name} size={16} />
           <span className="font-medium">{c.name}</span>
           <span className="text-[11px] text-neutral-400">{c.iso2}</span>
+          {!charted && (
+            <span className="rounded-full bg-black/[0.05] px-1.5 py-0.5 text-[10px] uppercase tracking-wider text-neutral-500 dark:bg-white/[0.06] dark:text-neutral-400">
+              snapshot
+            </span>
+          )}
         </div>
       </td>
       <td className="hidden px-3 py-2 text-neutral-500 sm:table-cell">{c.continent}</td>
       <td className="px-3 py-2 text-right font-semibold">{fmtPct(c.rate)}</td>
       <td className="hidden px-3 py-2 text-neutral-500 sm:table-cell">{fmtDate(c.rateDate)}</td>
       <td className="hidden px-3 py-2 text-neutral-500 md:table-cell">
-        {c.hasHistory ? (
+        {charted ? (
           <span>
             {c.historyStart?.slice(0, 4)}–{c.historyEnd?.slice(0, 4)}{" "}
             <span className="text-neutral-400">({c.historyCount} obs)</span>
           </span>
         ) : (
-          <span className="text-neutral-400">current only</span>
+          <span className="text-neutral-400">—</span>
         )}
       </td>
     </tr>
@@ -697,7 +733,18 @@ function CoverageDrawer({ coverage, onClose }: { coverage: Coverage; onClose: ()
               · snapshot {coverage.sources.current.snapshotDate}.
             </p>
             <p className="mt-1 text-neutral-500">
-              {coverage.totals.currentOnly} countries appear only here (no BIS history).
+              {coverage.totals.currentOnly} countries appear only here (no BIS history). They are marked
+              <span className="mx-1 rounded-full bg-black/[0.05] px-1.5 py-0.5 text-[10px] uppercase tracking-wider dark:bg-white/[0.06]">snapshot</span>
+              in the table and aren't chartable.
+            </p>
+          </Section>
+          <Section title="Why coverage stops at ~50 countries">
+            <p className="text-neutral-500">
+              BIS CBPOL is the canonical aggregate for monthly central-bank policy rates and already
+              harvests data from every central bank that publishes consistent monthly series. Extending
+              beyond it requires hand-rolled scrapers per country — many publish only rate-change
+              announcements (not monthly snapshots), use PDFs, or bot-defend their sites. The IMF's
+              SDMX API that used to bridge the gap was retired in 2024.
             </p>
           </Section>
           <Section title="Current-only countries (no historical series yet)">
